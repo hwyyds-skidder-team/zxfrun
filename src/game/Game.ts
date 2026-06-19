@@ -72,6 +72,7 @@ export class Game {
   private speakHold = 0
   private speakIdx = 0
   private best = 0
+  private lastFreeLane = 1
 
   // city
   private cityRng: Rng = mulberry32(1)
@@ -147,6 +148,9 @@ export class Game {
   getState() {
     return this.state
   }
+  getSugar() {
+    return this.sugar
+  }
   // test-only: drop an obstacle in the player's lane just ahead
   debugForceObstacle(type: ObjType) {
     if (this.state !== 'playing') return
@@ -185,6 +189,7 @@ export class Game {
     this.speakTimer = 3
     this.speakHold = 0
     this.speakIdx = 0
+    this.lastFreeLane = 1
     this.cb.onSpeak(null)
     this.state = 'playing'
   }
@@ -219,33 +224,31 @@ export class Game {
     }
   }
 
+  private pushObj(lane: number, type: ObjType) {
+    this.objs.push({ type, lane, d: MAXD, resolved: false, bob: Math.random() * 6.28 })
+  }
+
+  // Build one row. Always leaves a guaranteed-free lane that is reachable
+  // (within one lane) from the previous row's free lane, so the run is
+  // always solvable — no "impossible" walls. Up to 2 obstacles per row.
   private spawnRow() {
-    const pattern: (ObjType | null)[] = []
-    let obstacles = 0
+    const cands = [this.lastFreeLane - 1, this.lastFreeLane, this.lastFreeLane + 1].filter(
+      (l) => l >= 0 && l <= 2,
+    )
+    const free = cands[Math.floor(Math.random() * cands.length)]
     for (let i = 0; i < 3; i++) {
+      if (i === free) {
+        const k = Math.random()
+        if (k < 0.3) this.pushObj(i, 'ice')
+        else if (k < 0.55) this.pushObj(i, 'sprite')
+        continue
+      }
       const k = Math.random()
-      if (k < 0.22) {
-        pattern[i] = 'barrier'
-        obstacles++
-      } else if (k < 0.34) {
-        pattern[i] = 'treadmill'
-        obstacles++
-      } else if (k < 0.55) {
-        pattern[i] = 'ice'
-      } else if (k < 0.73) {
-        pattern[i] = 'sprite'
-      } else {
-        pattern[i] = null
-      }
+      if (k < 0.42) this.pushObj(i, 'barrier')
+      else if (k < 0.6) this.pushObj(i, 'treadmill')
+      else if (k < 0.78) this.pushObj(i, Math.random() < 0.5 ? 'ice' : 'sprite')
     }
-    if (obstacles >= 3) {
-      pattern[Math.floor(Math.random() * 3)] = Math.random() < 0.5 ? 'ice' : null
-    }
-    for (let i = 0; i < 3; i++) {
-      if (pattern[i]) {
-        this.objs.push({ type: pattern[i]!, lane: i, d: MAXD, resolved: false, bob: Math.random() * 6.28 })
-      }
-    }
+    this.lastFreeLane = free
   }
 
   private popup(text: string, color: string, laneMul: number, d: number) {
@@ -336,43 +339,52 @@ export class Game {
     }
 
     this.distSinceSpawn += this.speed * dt
-    if (this.distSinceSpawn >= 5.4) {
+    const rowGap = Math.max(3.2, Math.min(3.2 + this.speed * 0.09, 6))
+    if (this.distSinceSpawn >= rowGap) {
       this.distSinceSpawn = 0
       this.spawnRow()
     }
 
-    const inAir = this.player.yOff < -this.jumpPeak() * 0.34
+    // Fair collision: resolve once at the closest approach (d<=0), using the
+    // player's height. feet >= CLEAR means high enough to clear a low barrier
+    // (and high enough to fly over a collectible without taking it).
+    const feet = -this.player.yOff
+    const CLEAR = this.jumpPeak() * 0.3
     for (const o of this.objs) {
       o.d -= this.speed * dt
-      if (!o.resolved && o.d <= 0.22) {
+      if (!o.resolved && o.d <= 0) {
         o.resolved = true
         if (o.lane === this.player.lane) {
-          if (o.type === 'ice') {
-            this.collectScore += 50
-            this.sugar = Math.min(100, this.sugar + 15)
-            this.sugarFlash = 0.35
-            this.popup('+50', '#ffd27a', LANES[o.lane], 0.5)
-            if (this.sugar >= 100) {
-              this.gameOver('sugar')
-              return
-            }
-          } else if (o.type === 'sprite') {
-            this.collectScore += 30
-            this.sugar = Math.min(100, this.sugar + 11)
-            this.sugarFlash = 0.35
-            this.popup('+30', '#7CFC9A', LANES[o.lane], 0.5)
-            if (this.sugar >= 100) {
-              this.gameOver('sugar')
-              return
-            }
-          } else if (o.type === 'barrier') {
-            if (!inAir) {
+          if (o.type === 'barrier') {
+            if (feet < CLEAR) {
               this.gameOver('crash')
               return
             }
           } else if (o.type === 'treadmill') {
             this.gameOver('crash')
             return
+          } else if (o.type === 'ice') {
+            if (feet < CLEAR) {
+              this.collectScore += 50
+              this.sugar = Math.min(100, this.sugar + 15)
+              this.sugarFlash = 0.35
+              this.popup('+50', '#ffd27a', LANES[o.lane], 0.4)
+              if (this.sugar >= 100) {
+                this.gameOver('sugar')
+                return
+              }
+            }
+          } else if (o.type === 'sprite') {
+            if (feet < CLEAR) {
+              this.collectScore += 30
+              this.sugar = Math.min(100, this.sugar + 11)
+              this.sugarFlash = 0.35
+              this.popup('+30', '#7CFC9A', LANES[o.lane], 0.4)
+              if (this.sugar >= 100) {
+                this.gameOver('sugar')
+                return
+              }
+            }
           }
         }
       }
