@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ThreeGame as Game } from './three/ThreeGame'
 import type { GameOverInfo } from './game/types'
-import { Pause } from 'lucide-react'
+import { Pause, ArrowUp, ArrowDown, MoveHorizontal } from 'lucide-react'
 import { Hud, type HudHandles } from './components/Hud'
 import { StartScreen } from './components/StartScreen'
 import { GameOverScreen } from './components/GameOverScreen'
@@ -29,6 +29,8 @@ export default function App() {
   const [overInfo, setOverInfo] = useState<GameOverInfo | null>(null)
   const [muted, setMuted] = useState(false)
   const [speech, setSpeech] = useState<{ text: string; id: number } | null>(null)
+  const [showHint, setShowHint] = useState(false)
+  const hintTimer = useRef<number | undefined>(undefined)
   const [best, setBest] = useState<number>(() => Number(localStorage.getItem('zxfrun_best') || 0))
 
   // create the engine once
@@ -87,11 +89,15 @@ export default function App() {
     setOverInfo(null)
     setSpeech(null)
     setScreen('playing')
+    setShowHint(true)
+    window.clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setShowHint(false), 4500)
     playAudio()
   }
 
   const handlePause = () => {
     gameRef.current?.pause()
+    setShowHint(false)
     setScreen('paused')
   }
   const handleResume = () => {
@@ -197,6 +203,20 @@ export default function App() {
           <button className="pause-btn" onClick={handlePause} aria-label="暂停">
             <Pause size={20} />
           </button>
+        )}
+
+        {screen === 'playing' && showHint && (
+          <div className="tutorial">
+            <span>
+              <ArrowUp size={16} /> 跳
+            </span>
+            <span>
+              <ArrowDown size={16} /> 滑铲
+            </span>
+            <span>
+              <MoveHorizontal size={16} /> 换道
+            </span>
+          </div>
         )}
 
         {speech && screen === 'playing' && (

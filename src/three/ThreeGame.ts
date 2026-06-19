@@ -98,6 +98,13 @@ export class ThreeGame {
   private sound = new SoundManager()
   private shake = 0
 
+  // adaptive quality (auto-degrades on weak devices)
+  private vw = 1
+  private vh = 1
+  private quality = 2 // 2 high, 1 medium, 0 low
+  private fpsAccum = 0
+  private fpsFrames = 0
+
   // particles
   private particles: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number; max: number }[] = []
 
@@ -633,7 +640,9 @@ export class ThreeGame {
 
   // ---------------- API ----------------
   resize(w: number, h: number, dpr: number) {
-    this.renderer.setPixelRatio(Math.min(dpr, 2))
+    this.vw = w
+    this.vh = h
+    this.renderer.setPixelRatio(Math.min(dpr, this.quality === 0 ? 1 : 2))
     this.renderer.setSize(w, h, false)
     this.camera.aspect = w / h
     this.camera.updateProjectionMatrix()
@@ -808,9 +817,31 @@ export class ThreeGame {
   }
 
   // ---------------- loop ----------------
+  private monitorFps(dt: number) {
+    this.fpsAccum += dt
+    this.fpsFrames++
+    if (this.fpsAccum < 1.3) return
+    const fps = this.fpsFrames / this.fpsAccum
+    this.fpsAccum = 0
+    this.fpsFrames = 0
+    if (fps >= 42 || this.quality === 0) return
+    if (this.quality === 2) {
+      // drop bloom first (cheapest big win)
+      if (this.bloom) this.bloom.enabled = false
+      this.quality = 1
+    } else if (this.quality === 1) {
+      // drop shadows + render at 1x
+      this.sunLight.castShadow = false
+      this.renderer.setPixelRatio(1)
+      this.composer?.setSize(this.vw, this.vh)
+      this.quality = 0
+    }
+  }
+
   private loop() {
     let dt = this.clock.getDelta()
     if (dt > 0.05) dt = 0.05
+    if (this.state === 'playing') this.monitorFps(dt)
     this.update(dt)
     this.animate(dt)
     this.updateParticles(dt) // runs even on game-over so crash debris settles

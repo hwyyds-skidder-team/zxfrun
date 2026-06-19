@@ -199,6 +199,41 @@ body {
   transform: translateY(1px) scale(0.98);
 }
 
+.tutorial {
+  position: absolute;
+  top: 32%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  pointer-events: none;
+  animation: hintFade 0.4s ease, hintOut 0.6s ease 3.9s forwards;
+}
+.tutorial span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  padding: 8px 13px;
+  border-radius: 50px;
+  background: rgba(20, 14, 40, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(6px);
+}
+@keyframes hintFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -6px);
+  }
+}
+@keyframes hintOut {
+  to {
+    opacity: 0;
+  }
+}
+
 .sugar-wrap {
   position: absolute;
   left: 50%;
