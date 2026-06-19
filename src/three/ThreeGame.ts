@@ -13,9 +13,11 @@ import { applySky, type SkyTargets } from './sky'
 const PHASE_DIST = 420 // metres of running per time-of-day phase
 
 // ---- world constants (units) ----
-const LANE_X = 2.0
+const LANE_X = 2.3
 const LANES = [-LANE_X, 0, LANE_X]
-const ROAD_HALF = 3.2
+const ROAD_HALF = 3.6
+// obstacles must fit inside a lane (with a gap) so neighbours never merge
+const LANE_OBJ_W = 1.7
 const SPAWN_Z = -100
 const DESPAWN_Z = 14
 const KMH = 5
@@ -293,35 +295,35 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const legMat = new THREE.MeshStandardMaterial({ color: 0x55606a, roughness: 0.7, metalness: 0.4 })
-      for (const lx of [-1.4, 1.4]) {
-        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.0, 12), legMat)
-        leg.position.set(lx, 0.5, 0)
+      for (const lx of [-0.66, 0.66]) {
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.86, 12), legMat)
+        leg.position.set(lx, 0.43, 0)
         leg.castShadow = true
         g.add(leg)
       }
       const board = new THREE.Mesh(
-        this.rbox(3.4, 0.72, 0.22, 0.11),
+        this.rbox(LANE_OBJ_W, 0.56, 0.2, 0.1),
         new THREE.MeshStandardMaterial({ color: 0xf0a01e, roughness: 0.6 }),
       )
-      board.position.set(0, 1.05, 0)
+      board.position.set(0, 0.84, 0)
       board.castShadow = true
       g.add(board)
       // hazard stripes
-      for (let i = -3; i <= 3; i++) {
+      for (let i = -2; i <= 2; i++) {
         const s = new THREE.Mesh(
-          this.rbox(0.26, 0.66, 0.04, 0.02),
+          this.rbox(0.2, 0.52, 0.04, 0.02),
           new THREE.MeshStandardMaterial({ color: 0x1a1a1c }),
         )
-        s.position.set(i * 0.48, 1.05, 0.11)
+        s.position.set(i * 0.32, 0.84, 0.1)
         s.rotation.z = 0.5
         g.add(s)
       }
       // amber beacon
       const beacon = new THREE.Mesh(
-        new THREE.SphereGeometry(0.16, 18, 14),
+        new THREE.SphereGeometry(0.12, 16, 12),
         new THREE.MeshStandardMaterial({ color: 0xffb338, emissive: 0xffae33, emissiveIntensity: 2 }),
       )
-      beacon.position.set(-1.5, 1.6, 0)
+      beacon.position.set(-0.72, 1.16, 0)
       g.add(beacon)
       this.templates.barrier = g
     }
@@ -330,40 +332,40 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const deck = new THREE.Mesh(
-        this.rbox(2.6, 0.5, 2.0, 0.16),
+        this.rbox(LANE_OBJ_W, 0.46, 1.7, 0.14),
         new THREE.MeshStandardMaterial({ color: 0x262b36, roughness: 0.6, metalness: 0.3 }),
       )
-      deck.position.y = 0.25
+      deck.position.y = 0.23
       deck.castShadow = true
       g.add(deck)
       const belt = new THREE.Mesh(
-        this.rbox(2.0, 0.08, 1.7, 0.04),
+        this.rbox(1.2, 0.08, 1.45, 0.04),
         new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.5 }),
       )
-      belt.position.y = 0.52
+      belt.position.y = 0.48
       g.add(belt)
       const railMat = new THREE.MeshStandardMaterial({ color: 0xaab2c0, roughness: 0.4, metalness: 0.6 })
-      for (const sx of [-1.2, 1.2]) {
-        const rail = new THREE.Mesh(this.rbox(0.16, 1.2, 2.0, 0.07), railMat)
-        rail.position.set(sx, 0.6, 0)
+      for (const sx of [-0.72, 0.72]) {
+        const rail = new THREE.Mesh(this.rbox(0.13, 1.0, 1.7, 0.06), railMat)
+        rail.position.set(sx, 0.5, 0)
         rail.castShadow = true
         g.add(rail)
       }
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.4, 10), railMat)
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 10), railMat)
       post.rotation.z = Math.PI / 2
-      post.position.set(0, 1.2, -0.9)
+      post.position.set(0, 1.0, -0.78)
       g.add(post)
       const screen = new THREE.Mesh(
-        this.rbox(1.4, 0.7, 0.12, 0.06),
+        this.rbox(1.1, 0.58, 0.1, 0.05),
         new THREE.MeshStandardMaterial({ color: 0x0c1018 }),
       )
-      screen.position.set(0, 1.5, -0.95)
+      screen.position.set(0, 1.26, -0.82)
       g.add(screen)
       const scr = new THREE.Mesh(
-        new THREE.PlaneGeometry(1.1, 0.45),
+        new THREE.PlaneGeometry(0.85, 0.36),
         new THREE.MeshStandardMaterial({ color: 0x37e0b0, emissive: 0x37e0b0, emissiveIntensity: 1.6 }),
       )
-      scr.position.set(0, 1.5, -0.88)
+      scr.position.set(0, 1.26, -0.76)
       g.add(scr)
       this.templates.treadmill = g
     }
@@ -409,24 +411,24 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4f59, roughness: 0.6, metalness: 0.4 })
-      for (const lx of [-1.5, 1.5]) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 14), postMat)
-        post.position.set(lx, 1.4, 0)
+      for (const lx of [-0.92, 0.92]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2.7, 14), postMat)
+        post.position.set(lx, 1.35, 0)
         post.castShadow = true
         g.add(post)
       }
       const banner = new THREE.Mesh(
-        this.rbox(3.3, 0.95, 0.22, 0.14),
+        this.rbox(1.84, 0.82, 0.2, 0.12),
         new THREE.MeshStandardMaterial({ color: 0xc23b4a, roughness: 0.75 }),
       )
-      banner.position.set(0, 2.15, 0)
+      banner.position.set(0, 2.1, 0)
       banner.castShadow = true
       g.add(banner)
       const stripe = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.0, 0.32),
+        new THREE.PlaneGeometry(1.6, 0.28),
         new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffc233, emissiveIntensity: 1.3 }),
       )
-      stripe.position.set(0, 2.15, 0.12)
+      stripe.position.set(0, 2.1, 0.11)
       g.add(stripe)
       this.templates.overhead = g
     }
