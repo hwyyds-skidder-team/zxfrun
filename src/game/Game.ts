@@ -1,12 +1,24 @@
 import type { GameCallbacks, GameObject, GameOverReason, ObjType, Screen } from './types'
 import { drawBarrier, drawIceCream, drawRunner, drawSprite, drawTreadmill, star5 } from './draw'
+import { makeBuilding, makeSkyline, mulberry32, type Rng } from './city'
 
 const LANES = [-1, 0, 1]
-const MAXD = 27
+const MAXD = 28
 const FOCAL = 4.2
 const PLAYER_Y_FACTOR = 0.84
 // internal world-units/sec -> km/h.  Start speed 8 shows 40 km/h.
 const KMH = 5
+// jump tuning (px/s, px/s^2 — both scaled by artScale so airtime is constant)
+const JUMP_V0 = 560
+const GRAVITY = 1500
+
+interface Building {
+  side: number
+  d: number
+  canvas: HTMLCanvasElement
+  w: number
+  h: number
+}
 
 interface Particle {
   kind: 'text' | 'star'
@@ -61,15 +73,61 @@ export class Game {
   private speakIdx = 0
   private best = 0
 
+  // city
+  private cityRng: Rng = mulberry32(1)
+  private buildings: Building[] = []
+  private skyline: HTMLCanvasElement | null = null
+
   constructor(canvas: HTMLCanvasElement, cb: GameCallbacks) {
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('no 2d context')
     this.ctx = ctx
     this.cb = cb
     this.best = Number(localStorage.getItem('zxfrun_best') || 0)
+    this.initCity()
     this.last = performance.now()
     this.loop = this.loop.bind(this)
     this.raf = requestAnimationFrame(this.loop)
+  }
+
+  private initCity() {
+    this.cityRng = mulberry32(20260619)
+    this.skyline = makeSkyline(mulberry32(7), 2200, 260)
+    this.buildings = []
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 7; i++) {
+        const art = makeBuilding(this.cityRng, side)
+        this.buildings.push({
+          side,
+          d: 2 + i * 3.4 + (side < 0 ? 0 : 1.7),
+          canvas: art.canvas,
+          w: art.w,
+          h: art.h,
+        })
+      }
+    }
+  }
+
+  private updateCity(dist: number) {
+    for (const b of this.buildings) b.d -= dist
+    for (const side of [-1, 1]) {
+      let maxd = 0
+      for (const b of this.buildings) if (b.side === side && b.d > maxd) maxd = b.d
+      for (const b of this.buildings) {
+        if (b.side === side && b.d < -2.5) {
+          const art = makeBuilding(this.cityRng, side)
+          b.canvas = art.canvas
+          b.w = art.w
+          b.h = art.h
+          maxd += 3.0 + this.cityRng() * 1.8
+          b.d = maxd
+        }
+      }
+    }
+  }
+
+  private jumpPeak() {
+    return ((JUMP_V0 * JUMP_V0) / (2 * GRAVITY)) * this.artScale
   }
 
   setBest(v: number) {
@@ -78,12 +136,21 @@ export class Game {
   getBest() {
     return this.best
   }
-  // small accessors (used for automated input testing)
+  // small accessors (used for automated input testing).
+  // "airborne" means high enough to actually clear a barrier.
   isAirborne() {
-    return this.player.yOff < -1
+    return this.player.yOff < -this.jumpPeak() * 0.34
   }
   getLane() {
     return this.player.lane
+  }
+  getState() {
+    return this.state
+  }
+  // test-only: drop an obstacle in the player's lane just ahead
+  debugForceObstacle(type: ObjType) {
+    if (this.state !== 'playing') return
+    this.objs.push({ type, lane: this.player.lane, d: 2.6, resolved: false, bob: 0 })
   }
 
   resize(w: number, h: number, dpr: number) {
@@ -131,7 +198,7 @@ export class Game {
     if (this.state !== 'playing') return
     if (!this.player.jumping) {
       this.player.jumping = true
-      this.player.vy = -12.5
+      this.player.vy = -JUMP_V0 * this.artScale
     }
   }
 
@@ -224,6 +291,8 @@ export class Game {
     // Game over: freeze the whole scene — nothing advances.
     if (this.state === 'over') return
     this.time += dt
+    // the city scrolls in menu (idle) and play; frozen on game over
+    this.updateCity((this.state === 'playing' ? this.speed : 7) * dt)
     if (this.state === 'menu') {
       this.runCycle += dt * 4
       this.updateParticles(dt)
@@ -236,8 +305,8 @@ export class Game {
 
     this.player.displayLane += (this.player.lane - this.player.displayLane) * Math.min(1, dt * 14)
     if (this.player.jumping) {
-      this.player.vy += 42 * dt
-      this.player.yOff += this.player.vy * dt * 4.2
+      this.player.vy += GRAVITY * this.artScale * dt
+      this.player.yOff += this.player.vy * dt
       if (this.player.yOff >= 0) {
         this.player.yOff = 0
         this.player.jumping = false
@@ -272,7 +341,7 @@ export class Game {
       this.spawnRow()
     }
 
-    const inAir = this.player.yOff < -26
+    const inAir = this.player.yOff < -this.jumpPeak() * 0.34
     for (const o of this.objs) {
       o.d -= this.speed * dt
       if (!o.resolved && o.d <= 0.22) {
@@ -333,9 +402,10 @@ export class Game {
     ctx.save()
     ctx.translate(sx, sy)
     this.drawSky()
+    this.drawSkyline()
     this.drawGround()
-    this.drawScenery()
     this.drawRoadMarks()
+    this.drawCity()
     if (this.state === 'playing') this.drawSpeedLines()
     const sorted = this.objs.slice().sort((a, b) => b.d - a.d)
     for (const o of sorted) this.drawObject(o)
@@ -380,36 +450,87 @@ export class Game {
   private drawGround() {
     const ctx = this.ctx
     const hy = this.horizonY()
+    // urban dusk ground
     const gg = ctx.createLinearGradient(0, hy, 0, this.H)
-    gg.addColorStop(0, '#2c8a5a')
-    gg.addColorStop(1, '#1c5e3d')
+    gg.addColorStop(0, '#2b2740')
+    gg.addColorStop(1, '#16131f')
     ctx.fillStyle = gg
     ctx.fillRect(0, hy, this.W, this.H - hy)
-    const tl = this.project(MAXD, -1.8)
-    const bl = this.project(0, -1.8)
-    const tr = this.project(MAXD, 1.8)
-    const br = this.project(0, 1.8)
-    const rg = ctx.createLinearGradient(0, hy, 0, this.H)
-    rg.addColorStop(0, '#4a4a55')
-    rg.addColorStop(1, '#33333c')
+
+    const apexX = this.W / 2
+    const apexY = hy
+    const nl = this.project(0, -1.85)
+    const nr = this.project(0, 1.85)
+
+    // sidewalks just outside the road
+    for (const side of [-1, 1]) {
+      const innerN = this.project(0, side * 1.85)
+      const outerN = this.project(0, side * 2.4)
+      ctx.fillStyle = '#39354a'
+      ctx.beginPath()
+      ctx.moveTo(innerN.x, innerN.y)
+      ctx.lineTo(apexX, apexY)
+      ctx.lineTo(outerN.x, outerN.y)
+      ctx.closePath()
+      ctx.fill()
+    }
+
+    // road surface converging all the way to the horizon
+    const rg = ctx.createLinearGradient(0, apexY, 0, this.H)
+    rg.addColorStop(0, '#3d3d47')
+    rg.addColorStop(1, '#28282f')
     ctx.fillStyle = rg
     ctx.beginPath()
-    ctx.moveTo(tl.x, tl.y)
-    ctx.lineTo(tr.x, tr.y)
-    ctx.lineTo(br.x, br.y)
-    ctx.lineTo(bl.x, bl.y)
+    ctx.moveTo(nl.x, nl.y)
+    ctx.lineTo(apexX, apexY)
+    ctx.lineTo(nr.x, nr.y)
     ctx.closePath()
     ctx.fill()
-    ctx.lineWidth = Math.max(2, this.W * 0.012)
-    ctx.strokeStyle = 'rgba(255,255,255,.75)'
+
+    // curb lines
+    ctx.lineWidth = Math.max(2, this.W * 0.01)
+    ctx.strokeStyle = 'rgba(240,240,255,.65)'
     ctx.beginPath()
-    ctx.moveTo(tl.x, tl.y)
-    ctx.lineTo(bl.x, bl.y)
+    ctx.moveTo(nl.x, nl.y)
+    ctx.lineTo(apexX, apexY)
     ctx.stroke()
     ctx.beginPath()
-    ctx.moveTo(tr.x, tr.y)
-    ctx.lineTo(br.x, br.y)
+    ctx.moveTo(nr.x, nr.y)
+    ctx.lineTo(apexX, apexY)
     ctx.stroke()
+  }
+
+  private drawSkyline() {
+    if (!this.skyline) return
+    const ctx = this.ctx
+    const hy = this.horizonY()
+    const sh = this.H * 0.17
+    const sw = this.skyline.width * (sh / this.skyline.height)
+    let x = -((this.totalDist * 1.4) % sw)
+    for (; x < this.W; x += sw) {
+      ctx.drawImage(this.skyline, x, hy - sh + 2, sw, sh)
+    }
+  }
+
+  private drawCity() {
+    const ctx = this.ctx
+    const sorted = this.buildings.slice().sort((a, b) => b.d - a.d)
+    for (const b of sorted) {
+      if (b.d <= 0.02) continue
+      const base = this.project(b.d, b.side * 2.15)
+      if (base.p <= 0.02) continue
+      const k = base.p * this.artScale * 1.15
+      const w = b.w * k
+      const h = b.h * k
+      const x = b.side < 0 ? base.x - w : base.x
+      const y = base.y - h
+      // contact shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.22)'
+      ctx.beginPath()
+      ctx.ellipse(b.side < 0 ? base.x - w * 0.5 : base.x + w * 0.5, base.y, w * 0.5, 6 * base.p, 0, 0, 7)
+      ctx.fill()
+      ctx.drawImage(b.canvas, x, y, w, h)
+    }
   }
 
   private drawSpeedLines() {
@@ -437,10 +558,10 @@ export class Game {
     const seg = 2.2
     const phase = (this.state === 'menu' ? this.time * 4 : this.totalDist) % seg
     for (const laneMul of [-0.5, 0.5]) {
-      for (let i = 0; i < 14; i++) {
+      for (let i = 0; i < 30; i++) {
         const d0 = i * seg - phase
         const d1 = d0 + 1.1
-        if (d1 <= 0 || d0 > MAXD) continue
+        if (d1 <= 0 || d0 > 64) continue
         const a = this.project(Math.max(d0, 0.02), laneMul)
         const b = this.project(Math.max(d1, 0.02), laneMul)
         ctx.strokeStyle = 'rgba(255,220,120,.85)'
@@ -449,35 +570,6 @@ export class Game {
         ctx.moveTo(a.x, a.y)
         ctx.lineTo(b.x, b.y)
         ctx.stroke()
-      }
-    }
-  }
-
-  private drawScenery() {
-    const ctx = this.ctx
-    const seg = 4.0
-    const phase = (this.state === 'menu' ? this.time * 4 : this.totalDist) % seg
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 9; i++) {
-        const d = i * seg - phase + (side < 0 ? 0 : 2.0)
-        if (d <= 0.1 || d > MAXD) continue
-        const base = this.project(d, side * 2.5)
-        const h = (60 + ((i * 53 + (side < 0 ? 17 : 91)) % 70)) * base.p
-        const w = 46 * base.p
-        const hue = (i * 47 + (side < 0 ? 0 : 120)) % 360
-        ctx.fillStyle = `hsl(${(260 + hue) % 360},35%,${28 + (i % 3) * 6}%)`
-        ctx.fillRect(base.x - (side < 0 ? w : 0), base.y - h, w, h)
-        ctx.fillStyle = 'rgba(255,220,140,.5)'
-        for (let wy = 0; wy < 3; wy++)
-          for (let wx = 0; wx < 2; wx++) {
-            if ((i + wy + wx) % 2 === 0)
-              ctx.fillRect(
-                base.x - (side < 0 ? w : 0) + w * 0.18 + wx * w * 0.42,
-                base.y - h + h * 0.15 + wy * h * 0.27,
-                w * 0.22,
-                h * 0.14,
-              )
-          }
       }
     }
   }
@@ -507,12 +599,13 @@ export class Game {
     const x = this.W / 2 + (this.player.displayLane - 1) * this.laneSpacingPx()
     const y = baseY + this.player.yOff
     const s = this.artScale * 1.05
-    const sh = 1 - Math.min(0.6, -this.player.yOff / 120)
+    const jp = Math.max(0, Math.min(1, -this.player.yOff / this.jumpPeak()))
+    const sh = 1 - Math.min(0.62, -this.player.yOff / (this.jumpPeak() * 1.7))
     ctx.fillStyle = 'rgba(0,0,0,.3)'
     ctx.beginPath()
     ctx.ellipse(x, baseY + 34 * s, 30 * s * sh, 9 * s * sh, 0, 0, 7)
     ctx.fill()
-    drawRunner(ctx, x, y, s, this.runCycle, this.state === 'over')
+    drawRunner(ctx, x, y, s, this.runCycle, this.state === 'over', jp)
   }
 
   private drawParticles() {

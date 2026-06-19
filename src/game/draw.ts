@@ -114,23 +114,72 @@ export function drawSprite(ctx: Ctx, x: number, y: number, s: number) {
   ctx.restore()
 }
 
-// jumpable striped barrier
+// jumpable construction barricade (hazard board on A-frame feet)
 export function drawBarrier(ctx: Ctx, x: number, y: number, s: number) {
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(s, s)
-  ctx.fillStyle = '#b5352a'
-  roundRect(ctx, -34, -6, 8, 24, 2)
-  ctx.fill()
-  roundRect(ctx, 26, -6, 8, 24, 2)
-  ctx.fill()
-  for (let i = 0; i < 8; i++) {
-    ctx.fillStyle = i % 2 ? '#f4f4f4' : '#ff7a1a'
-    ctx.fillRect(-38 + i * 9.5, -26, 9.5, 18)
+
+  // A-frame legs
+  ctx.fillStyle = '#5b6068'
+  for (const lx of [-30, 30]) {
+    ctx.beginPath()
+    ctx.moveTo(lx - 4, 16)
+    ctx.lineTo(lx + 4, 16)
+    ctx.lineTo(lx + 2.5, -20)
+    ctx.lineTo(lx - 2.5, -20)
+    ctx.closePath()
+    ctx.fill()
+    // foot
+    ctx.fillStyle = '#3c4047'
+    roundRect(ctx, lx - 8, 14, 16, 5, 2)
+    ctx.fill()
+    ctx.fillStyle = '#5b6068'
   }
-  ctx.strokeStyle = 'rgba(0,0,0,.28)'
+
+  // hazard board with diagonal stripes
+  const bx = -42
+  const bw = 84
+  const by = -30
+  const bh = 20
+  ctx.save()
+  roundRect(ctx, bx, by, bw, bh, 3)
+  ctx.clip()
+  ctx.fillStyle = '#f0a01e'
+  ctx.fillRect(bx, by, bw, bh)
+  ctx.fillStyle = '#1d1d1f'
+  const sw = 12
+  for (let i = -2; i < bw / sw + 2; i++) {
+    ctx.beginPath()
+    const ox = bx + i * sw * 2
+    ctx.moveTo(ox, by + bh)
+    ctx.lineTo(ox + sw, by + bh)
+    ctx.lineTo(ox + sw + bh, by)
+    ctx.lineTo(ox + bh, by)
+    ctx.closePath()
+    ctx.fill()
+  }
+  // reflective sheen
+  ctx.fillStyle = 'rgba(255,255,255,.18)'
+  ctx.fillRect(bx, by + 2, bw, 4)
+  ctx.restore()
+  ctx.strokeStyle = 'rgba(0,0,0,.4)'
   ctx.lineWidth = 1.5
-  ctx.strokeRect(-38, -26, 76, 18)
+  roundRect(ctx, bx, by, bw, bh, 3)
+  ctx.stroke()
+
+  // amber warning light
+  ctx.fillStyle = '#1d1d1f'
+  roundRect(ctx, bx - 2, by - 8, 8, 8, 2)
+  ctx.fill()
+  ctx.fillStyle = '#ffb338'
+  ctx.beginPath()
+  ctx.arc(bx + 2, by - 6, 3.4, 0, 7)
+  ctx.fill()
+  ctx.fillStyle = 'rgba(255,210,120,.5)'
+  ctx.beginPath()
+  ctx.arc(bx + 2, by - 6, 5.5, 0, 7)
+  ctx.fill()
   ctx.restore()
 }
 
@@ -139,35 +188,64 @@ export function drawTreadmill(ctx: Ctx, x: number, y: number, s: number, time: n
   ctx.save()
   ctx.translate(x, y)
   ctx.scale(s, s)
-  ctx.fillStyle = '#20242f'
-  roundRect(ctx, -30, -6, 60, 21, 6)
+
+  // deck base
+  const dg = ctx.createLinearGradient(0, -8, 0, 16)
+  dg.addColorStop(0, '#3a4150')
+  dg.addColorStop(1, '#20242f')
+  ctx.fillStyle = dg
+  roundRect(ctx, -32, -8, 64, 24, 7)
   ctx.fill()
-  ctx.fillStyle = '#363c4a'
-  roundRect(ctx, -30, -6, 60, 7, 4)
-  ctx.fill()
-  const ph = (time * 6) % 8
-  ctx.strokeStyle = '#10131b'
+
+  // running belt
+  ctx.save()
+  roundRect(ctx, -26, -5, 52, 16, 4)
+  ctx.clip()
+  ctx.fillStyle = '#15181f'
+  ctx.fillRect(-26, -5, 52, 16)
+  const ph = (time * 14) % 7
+  ctx.strokeStyle = '#2b303c'
   ctx.lineWidth = 2
-  for (let i = 0; i < 8; i++) {
-    const lx = -28 + ((i * 8 + ph) % 56)
+  for (let i = -1; i < 9; i++) {
+    const ly = -5 + ((i * 7 + ph) % 18)
     ctx.beginPath()
-    ctx.moveTo(lx, -2)
-    ctx.lineTo(lx, 9)
+    ctx.moveTo(-26, ly)
+    ctx.lineTo(26, ly)
     ctx.stroke()
   }
+  ctx.restore()
+
+  // side rails
+  ctx.fillStyle = '#aeb6c4'
+  roundRect(ctx, -32, -8, 6, 24, 3)
+  ctx.fill()
+  roundRect(ctx, 26, -8, 6, 24, 3)
+  ctx.fill()
+
+  // console post + screen
   ctx.strokeStyle = '#9aa3b2'
   ctx.lineWidth = 4
   ctx.lineCap = 'round'
   ctx.beginPath()
-  ctx.moveTo(-26, -6)
-  ctx.lineTo(-30, -46)
-  ctx.lineTo(8, -46)
+  ctx.moveTo(-22, -6)
+  ctx.lineTo(-26, -48)
+  ctx.lineTo(22, -48)
+  ctx.lineTo(20, -6)
   ctx.stroke()
-  ctx.fillStyle = '#161924'
-  roundRect(ctx, -2, -58, 28, 16, 4)
+  ctx.fillStyle = '#14171f'
+  roundRect(ctx, -16, -60, 32, 16, 3)
   ctx.fill()
-  ctx.fillStyle = '#52e0ff'
-  roundRect(ctx, 2, -54, 20, 8, 2)
+  ctx.fillStyle = '#37e0b0'
+  roundRect(ctx, -12, -57, 16, 10, 2)
+  ctx.fill()
+  // buttons
+  ctx.fillStyle = '#ff5a4d'
+  ctx.beginPath()
+  ctx.arc(9, -52, 2, 0, 7)
+  ctx.fill()
+  ctx.fillStyle = '#ffd34d'
+  ctx.beginPath()
+  ctx.arc(9, -46, 2, 0, 7)
   ctx.fill()
   ctx.restore()
 }
@@ -217,7 +295,15 @@ function arm(ctx: Ctx, shX: number, shY: number, side: number, swing: number, sl
   ctx.fill()
 }
 
-export function drawRunner(ctx: Ctx, x: number, y: number, s: number, t: number, fallen: boolean) {
+export function drawRunner(
+  ctx: Ctx,
+  x: number,
+  y: number,
+  s: number,
+  t: number,
+  fallen: boolean,
+  jump = 0,
+) {
   ctx.save()
   ctx.translate(x, y)
   if (fallen) {
@@ -233,12 +319,30 @@ export function drawRunner(ctx: Ctx, x: number, y: number, s: number, t: number,
   const sleeve = '#ff7a3a'
   const shoe = '#ffffff'
 
-  const run = !fallen
-  const bob = run ? Math.sin(t * 2) * 1.6 : 0
-  const liftL = run ? Math.max(0, Math.sin(t)) : 0.15
-  const liftR = run ? Math.max(0, Math.sin(t + Math.PI)) : 0.0
-  const swingL = run ? Math.sin(t + Math.PI) * 0.9 : -0.2
-  const swingR = run ? Math.sin(t) * 0.9 : 0.2
+  const airborne = !fallen && jump > 0.05
+  const run = !fallen && !airborne
+
+  let bob: number, liftL: number, liftR: number, swingL: number, swingR: number
+  if (airborne) {
+    // tuck legs up, throw arms up
+    bob = -1.5
+    liftL = 0.85 + jump * 0.15
+    liftR = 0.7 + jump * 0.15
+    swingL = 1.2
+    swingR = 1.2
+  } else if (run) {
+    bob = Math.sin(t * 2) * 1.6
+    liftL = Math.max(0, Math.sin(t))
+    liftR = Math.max(0, Math.sin(t + Math.PI))
+    swingL = Math.sin(t + Math.PI) * 0.9
+    swingR = Math.sin(t) * 0.9
+  } else {
+    bob = 0
+    liftL = 0.15
+    liftR = 0
+    swingL = -0.2
+    swingR = 0.2
+  }
 
   ctx.translate(0, bob)
 
