@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import type { GameCallbacks, GameOverReason, ObjType, Screen } from '../game/types'
 import { makeFacadeTexture, makeRoadTexture, mulberry32, type Rng } from './textures'
+import { makeCar, makeLamp, makeTree } from './props'
 
 // ---- world constants (units) ----
 const LANE_X = 2.0
@@ -79,6 +80,7 @@ export class ThreeGame {
   private buildings: Building[] = []
   private facadeMats: THREE.Material[] = []
   private cityRng: Rng = mulberry32(7)
+  private props: { type: 'lamp' | 'tree' | 'car'; mesh: THREE.Object3D; side: number; z: number }[] = []
 
   // env
   private road!: THREE.Mesh
@@ -104,6 +106,7 @@ export class ThreeGame {
     this.buildRoad()
     this.buildTemplates()
     this.buildCity()
+    this.buildProps()
     this.buildPlayer()
 
     try {
@@ -374,6 +377,53 @@ export class ThreeGame {
     }
   }
 
+  private buildProps() {
+    for (const side of [-1, 1]) {
+      let z = -6
+      for (let i = 0; i < 18; i++) {
+        this.addProp(side, z)
+        z -= 7 + this.cityRng() * 4
+      }
+    }
+  }
+
+  private addProp(side: number, z: number) {
+    const r = this.cityRng()
+    let type: 'lamp' | 'tree' | 'car'
+    let mesh: THREE.Object3D
+    let x: number
+    if (r < 0.4) {
+      type = 'lamp'
+      mesh = makeLamp()
+      x = side * (ROAD_HALF + 0.35)
+      if (side > 0) mesh.rotation.y = Math.PI
+    } else if (r < 0.75) {
+      type = 'tree'
+      mesh = makeTree()
+      x = side * (ROAD_HALF + 1.5)
+    } else {
+      type = 'car'
+      mesh = makeCar(this.cityRng)
+      x = side * (ROAD_HALF + 0.85)
+    }
+    mesh.position.set(x, 0, z)
+    this.scene.add(mesh)
+    this.props.push({ type, mesh, side, z })
+  }
+
+  private updateProps(dist: number) {
+    for (const p of this.props) {
+      p.z += dist
+      p.mesh.position.z = p.z
+      if (p.z > 22) {
+        let minZ = 0
+        for (const q of this.props) if (q.side === p.side) minZ = Math.min(minZ, q.z)
+        p.z = minZ - (7 + this.cityRng() * 4)
+        p.mesh.position.z = p.z
+      }
+    }
+  }
+
   private makeBuilding(side: number, z: number): Building {
     const h = 7 + this.cityRng() * 34
     const w = 4 + this.cityRng() * 5
@@ -636,6 +686,7 @@ export class ThreeGame {
       b.mesh.position.z += scroll * dt
       if (b.mesh.position.z > 20) this.recycleBuilding(b)
     }
+    this.updateProps(scroll * dt)
 
     if (this.state === 'menu') {
       this.runCycle += dt * 5
