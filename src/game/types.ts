@@ -1,7 +1,7 @@
 export type Screen = 'menu' | 'playing' | 'paused' | 'over'
 
-// barrier = jump over · treadmill = switch lane · overhead = slide under
-export type ObjType = 'ice' | 'sprite' | 'barrier' | 'treadmill' | 'overhead'
+// barrier/treadmill = jump over · overhead = slide under · wall = switch lane
+export type ObjType = 'ice' | 'sprite' | 'barrier' | 'treadmill' | 'overhead' | 'wall'
 
 export type GameOverReason = 'sugar' | 'crash'
 
