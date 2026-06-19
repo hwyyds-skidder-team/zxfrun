@@ -128,6 +128,91 @@ export function makeRoadTexture(r: Rng, lanes: number): THREE.CanvasTexture {
   return t
 }
 
+// 雪碧 can label (wraps around the cylinder body)
+export function makeSpriteLabel(): THREE.CanvasTexture {
+  const w = 512
+  const h = 1024
+  const c = cv(w, h)
+  const x = c.getContext('2d')!
+  // green body
+  x.fillStyle = '#1ea64c'
+  x.fillRect(0, 0, w, h)
+  // yellow top section with a curved lower boundary
+  x.fillStyle = '#ffe23a'
+  x.beginPath()
+  x.moveTo(0, 0)
+  x.lineTo(w, 0)
+  x.lineTo(w, h * 0.3)
+  x.quadraticCurveTo(w * 0.5, h * 0.52, 0, h * 0.26)
+  x.closePath()
+  x.fill()
+  // lemon dot
+  x.fillStyle = '#ffe23a'
+  x.beginPath()
+  x.arc(w * 0.66, h * 0.45, 40, 0, 7)
+  x.fill()
+  // green tagline on the yellow
+  x.fillStyle = '#1c8f43'
+  x.font = 'bold 42px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.textAlign = 'left'
+  x.textBaseline = 'middle'
+  x.fillText('清爽柠檬味汽水', w * 0.06, h * 0.17)
+  // big white 雪碧 logo, slanted
+  x.save()
+  x.translate(w * 0.46, h * 0.56)
+  x.rotate(-0.12)
+  x.fillStyle = '#ffffff'
+  x.font = 'italic bold 250px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.textAlign = 'center'
+  x.textBaseline = 'middle'
+  x.fillText('雪碧', 0, 0)
+  x.restore()
+  // white bottom tagline
+  x.fillStyle = 'rgba(255,255,255,0.92)'
+  x.font = 'bold 46px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.textAlign = 'center'
+  x.fillText('即刻酷爽', w * 0.5, h * 0.9)
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = THREE.RepeatWrapping
+  t.wrapT = THREE.ClampToEdgeWrapping
+  t.anisotropy = 8
+  return t
+}
+
+// chunky chocolate coating for the 巧乐兹 bar
+export function makeChocoTexture(): THREE.CanvasTexture {
+  const w = 256
+  const h = 384
+  const c = cv(w, h)
+  const x = c.getContext('2d')!
+  const g = x.createLinearGradient(0, 0, w, h)
+  g.addColorStop(0, '#5a3418')
+  g.addColorStop(1, '#2c1708')
+  x.fillStyle = g
+  x.fillRect(0, 0, w, h)
+  // irregular crunchy chunks
+  for (let i = 0; i < 1100; i++) {
+    const cx = Math.random() * w
+    const cy = Math.random() * h
+    const r = 2 + Math.random() * 7
+    x.fillStyle = Math.random() < 0.5 ? 'rgba(28,15,7,0.85)' : 'rgba(120,80,40,0.6)'
+    x.beginPath()
+    x.ellipse(cx, cy, r, r * (0.6 + Math.random() * 0.7), Math.random() * 3, 0, 7)
+    x.fill()
+  }
+  // glossy specks
+  for (let i = 0; i < 150; i++) {
+    x.fillStyle = 'rgba(200,150,90,0.4)'
+    x.beginPath()
+    x.arc(Math.random() * w, Math.random() * h, 1 + Math.random() * 2, 0, 7)
+    x.fill()
+  }
+  const t = new THREE.CanvasTexture(c)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+
 function shade(hex: string, amt: number): string {
   const n = hex.replace('#', '')
   const r = parseInt(n.slice(0, 2), 16)
