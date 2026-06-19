@@ -5,7 +5,14 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import type { GameCallbacks, GameOverReason, ObjType, Screen } from '../game/types'
-import { makeFacadeTexture, makeRoadTexture, mulberry32, type Rng } from './textures'
+import {
+  makeChocoTexture,
+  makeFacadeTexture,
+  makeRoadTexture,
+  makeSpriteLabel,
+  mulberry32,
+  type Rng,
+} from './textures'
 import { makeCar, makeLamp, makeTree } from './props'
 import { SoundManager } from '../game/sound'
 import { applySky, type SkyTargets } from './sky'
@@ -409,7 +416,7 @@ export class ThreeGame {
     // 巧乐兹 — glossy chocolate bar on a stick with crunchy nibs + vanilla core
     {
       const g = new THREE.Group()
-      const choc = new THREE.MeshStandardMaterial({ color: 0x3f2410, roughness: 0.32, metalness: 0.08 })
+      const choc = new THREE.MeshStandardMaterial({ map: makeChocoTexture(), roughness: 0.34, metalness: 0.08 })
       const bar = new THREE.Mesh(this.rbox(0.66, 1.05, 0.42, 0.2), choc)
       bar.castShadow = true
       g.add(bar)
@@ -454,8 +461,12 @@ export class ThreeGame {
     // 雪碧 — aluminium green can with silver top, pull-tab and white swoosh
     {
       const g = new THREE.Group()
-      const green = new THREE.MeshStandardMaterial({ color: 0x1aa64a, roughness: 0.22, metalness: 0.75 })
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.05, 30), green)
+      const green = new THREE.MeshStandardMaterial({
+        map: makeSpriteLabel(),
+        roughness: 0.28,
+        metalness: 0.55,
+      })
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.05, 36), green)
       body.castShadow = true
       g.add(body)
       const silver = new THREE.MeshStandardMaterial({ color: 0xccd2d6, roughness: 0.28, metalness: 0.9 })
@@ -471,27 +482,6 @@ export class ThreeGame {
       const tab = new THREE.Mesh(this.rbox(0.17, 0.02, 0.1, 0.01), silver)
       tab.position.set(0, 0.645, 0.04)
       g.add(tab)
-      // white swoosh band (open tilted cylinder)
-      const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.337, 0.337, 0.34, 30, 1, true),
-        new THREE.MeshStandardMaterial({
-          color: 0xeef8f1,
-          roughness: 0.3,
-          metalness: 0.5,
-          side: THREE.DoubleSide,
-        }),
-      )
-      band.rotation.z = 0.16
-      band.position.y = -0.02
-      g.add(band)
-      // a couple of yellow accents (lemon-lime hint)
-      const accent = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.339, 0.339, 0.05, 30, 1, true),
-        new THREE.MeshStandardMaterial({ color: 0xffe14a, roughness: 0.35, side: THREE.DoubleSide }),
-      )
-      accent.rotation.z = 0.16
-      accent.position.y = 0.16
-      g.add(accent)
       this.templates.sprite = g
     }
 
