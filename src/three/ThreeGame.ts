@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import type { GameCallbacks, GameOverReason, ObjType, Screen } from '../game/types'
 import { makeFacadeTexture, makeRoadTexture, mulberry32, type Rng } from './textures'
 import { makeCar, makeLamp, makeTree } from './props'
@@ -241,6 +242,11 @@ export class ThreeGame {
     }
   }
 
+  // rounded box helper for soft, polished edges
+  private rbox(w: number, h: number, d: number, r = 0.08, seg = 3) {
+    return new RoundedBoxGeometry(w, h, d, seg, Math.min(r, w / 2, h / 2, d / 2))
+  }
+
   private buildTemplates() {
     // facade material pool
     for (let i = 0; i < 7; i++) {
@@ -262,13 +268,13 @@ export class ThreeGame {
       const g = new THREE.Group()
       const legMat = new THREE.MeshStandardMaterial({ color: 0x55606a, roughness: 0.7, metalness: 0.4 })
       for (const lx of [-1.4, 1.4]) {
-        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.18, 1.0, 0.18), legMat)
+        const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 1.0, 12), legMat)
         leg.position.set(lx, 0.5, 0)
         leg.castShadow = true
         g.add(leg)
       }
       const board = new THREE.Mesh(
-        new THREE.BoxGeometry(3.4, 0.7, 0.18),
+        this.rbox(3.4, 0.72, 0.22, 0.11),
         new THREE.MeshStandardMaterial({ color: 0xf0a01e, roughness: 0.6 }),
       )
       board.position.set(0, 1.05, 0)
@@ -277,16 +283,16 @@ export class ThreeGame {
       // hazard stripes
       for (let i = -3; i <= 3; i++) {
         const s = new THREE.Mesh(
-          new THREE.BoxGeometry(0.26, 0.7, 0.02),
+          this.rbox(0.26, 0.66, 0.04, 0.02),
           new THREE.MeshStandardMaterial({ color: 0x1a1a1c }),
         )
-        s.position.set(i * 0.48, 1.05, 0.1)
+        s.position.set(i * 0.48, 1.05, 0.11)
         s.rotation.z = 0.5
         g.add(s)
       }
       // amber beacon
       const beacon = new THREE.Mesh(
-        new THREE.SphereGeometry(0.16, 12, 10),
+        new THREE.SphereGeometry(0.16, 18, 14),
         new THREE.MeshStandardMaterial({ color: 0xffb338, emissive: 0xffae33, emissiveIntensity: 2 }),
       )
       beacon.position.set(-1.5, 1.6, 0)
@@ -298,30 +304,31 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const deck = new THREE.Mesh(
-        new THREE.BoxGeometry(2.6, 0.5, 2.0),
+        this.rbox(2.6, 0.5, 2.0, 0.16),
         new THREE.MeshStandardMaterial({ color: 0x262b36, roughness: 0.6, metalness: 0.3 }),
       )
       deck.position.y = 0.25
       deck.castShadow = true
       g.add(deck)
       const belt = new THREE.Mesh(
-        new THREE.BoxGeometry(2.0, 0.06, 1.7),
+        this.rbox(2.0, 0.08, 1.7, 0.04),
         new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.5 }),
       )
       belt.position.y = 0.52
       g.add(belt)
       const railMat = new THREE.MeshStandardMaterial({ color: 0xaab2c0, roughness: 0.4, metalness: 0.6 })
       for (const sx of [-1.2, 1.2]) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.2, 2.0), railMat)
+        const rail = new THREE.Mesh(this.rbox(0.16, 1.2, 2.0, 0.07), railMat)
         rail.position.set(sx, 0.6, 0)
         rail.castShadow = true
         g.add(rail)
       }
-      const post = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.1, 0.1), railMat)
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.4, 10), railMat)
+      post.rotation.z = Math.PI / 2
       post.position.set(0, 1.2, -0.9)
       g.add(post)
       const screen = new THREE.Mesh(
-        new THREE.BoxGeometry(1.4, 0.7, 0.12),
+        this.rbox(1.4, 0.7, 0.12, 0.06),
         new THREE.MeshStandardMaterial({ color: 0x0c1018 }),
       )
       screen.position.set(0, 1.5, -0.95)
@@ -339,13 +346,13 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const bar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.7, 1.0, 0.34),
+        this.rbox(0.72, 1.0, 0.36, 0.16),
         new THREE.MeshStandardMaterial({ color: 0x5a3014, roughness: 0.5 }),
       )
       bar.castShadow = true
       g.add(bar)
       const stick = new THREE.Mesh(
-        new THREE.BoxGeometry(0.12, 0.5, 0.12),
+        this.rbox(0.12, 0.5, 0.12, 0.05),
         new THREE.MeshStandardMaterial({ color: 0xd9a566, roughness: 0.8 }),
       )
       stick.position.y = -0.72
@@ -358,13 +365,13 @@ export class ThreeGame {
     {
       const g = new THREE.Group()
       const can = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.34, 0.34, 1.0, 20),
+        new THREE.CylinderGeometry(0.34, 0.34, 1.0, 28),
         new THREE.MeshStandardMaterial({ color: 0x2fb55f, roughness: 0.3, metalness: 0.6 }),
       )
       can.castShadow = true
       g.add(can)
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.345, 0.345, 0.28, 20),
+        new THREE.CylinderGeometry(0.345, 0.345, 0.28, 28),
         new THREE.MeshStandardMaterial({ color: 0xeaf7ee, roughness: 0.3, metalness: 0.5 }),
       )
       g.add(band)
@@ -377,13 +384,13 @@ export class ThreeGame {
       const g = new THREE.Group()
       const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4f59, roughness: 0.6, metalness: 0.4 })
       for (const lx of [-1.5, 1.5]) {
-        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 8), postMat)
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 14), postMat)
         post.position.set(lx, 1.4, 0)
         post.castShadow = true
         g.add(post)
       }
       const banner = new THREE.Mesh(
-        new THREE.BoxGeometry(3.3, 0.95, 0.22),
+        this.rbox(3.3, 0.95, 0.22, 0.14),
         new THREE.MeshStandardMaterial({ color: 0xc23b4a, roughness: 0.75 }),
       )
       banner.position.set(0, 2.15, 0)
@@ -464,11 +471,10 @@ export class ThreeGame {
     const d = 4 + this.cityRng() * 6
     const mat = this.facadeMats[Math.floor(this.cityRng() * this.facadeMats.length)]
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-    const x = side * (ROAD_HALF + 2.0 + this.cityRng() * 5)
+    // anchor the INNER face beyond the sidewalk (account for half the width),
+    // so wide buildings never poke onto the road
+    const x = side * (ROAD_HALF + 2.4 + this.cityRng() * 4 + w / 2)
     mesh.position.set(x, h / 2, z)
-    // repeat facade by floors so windows stay square-ish
-    const geo = mesh.geometry as THREE.BoxGeometry
-    geo.clearGroups()
     return { mesh, z, side, height: h }
   }
 
@@ -484,16 +490,16 @@ export class ThreeGame {
     const hairMat = new THREE.MeshStandardMaterial({ color: 0x241f2c, roughness: 0.8 })
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x222028, roughness: 0.4, metalness: 0.3 })
 
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.8, 0.36), tracksuit)
+    const torso = new THREE.Mesh(this.rbox(0.64, 0.82, 0.4, 0.18), tracksuit)
     torso.position.y = 1.15
     torso.castShadow = true
     root.add(torso)
     this.parts.torso = torso
 
     // white side stripes
-    for (const sx of [-0.31, 0.31]) {
+    for (const sx of [-0.32, 0.32]) {
       const st = new THREE.Mesh(
-        new THREE.BoxGeometry(0.06, 0.66, 0.37),
+        this.rbox(0.07, 0.66, 0.41, 0.03),
         new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }),
       )
       st.position.set(sx, 0, 0)
@@ -530,7 +536,7 @@ export class ThreeGame {
       lower.castShadow = true
       knee.add(lower)
       if (shoe) {
-        const sh = new THREE.Mesh(new THREE.BoxGeometry(rad * 2.4, 0.12, rad * 3.4), shoeMat)
+        const sh = new THREE.Mesh(this.rbox(rad * 2.4, 0.14, rad * 3.4, 0.06), shoeMat)
         sh.position.set(0, -lowerLen - 0.02, -rad)
         knee.add(sh)
       }
@@ -768,7 +774,7 @@ export class ThreeGame {
   private seedRoad() {
     this.lastFreeLane = 1
     let i = 0
-    for (let z = -18; z > SPAWN_Z; z -= 5.5, i++) {
+    for (let z = -20; z > SPAWN_Z; z -= 6.5, i++) {
       // keep the first couple of rows clear in the player's lane
       this.spawnRowAt(z, i < 2 ? 1 : undefined)
     }
@@ -859,7 +865,7 @@ export class ThreeGame {
 
     // spawn (time-fair: ~0.55s between rows regardless of speed)
     this.distSinceSpawn += this.speed * dt
-    const rowGap = this.speed * 0.55
+    const rowGap = Math.max(5.5, this.speed * 0.7)
     if (this.distSinceSpawn >= rowGap) {
       this.distSinceSpawn = 0
       this.spawnRow()
@@ -936,7 +942,7 @@ export class ThreeGame {
     b.mesh.geometry = new THREE.BoxGeometry(w, h, d)
     b.mesh.material = this.facadeMats[Math.floor(this.cityRng() * this.facadeMats.length)]
     b.height = h
-    const x = b.side * (ROAD_HALF + 2.0 + this.cityRng() * 5)
+    const x = b.side * (ROAD_HALF + 2.4 + this.cityRng() * 4 + w / 2)
     b.mesh.position.set(x, h / 2, minZ - (6 + this.cityRng() * 4))
   }
 
