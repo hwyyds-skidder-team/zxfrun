@@ -128,48 +128,49 @@ export function makeRoadTexture(r: Rng, lanes: number): THREE.CanvasTexture {
   return t
 }
 
-// 雪碧 can label (wraps around the cylinder body)
+// 雪碧 can label. Canvas aspect matches the can's unwrapped surface
+// (circumference : height) so the logo wraps WITHOUT vertical stretching.
 export function makeSpriteLabel(): THREE.CanvasTexture {
-  const w = 512
-  const h = 1024
+  const w = 768
+  const h = 612 // ~ width / 1.255 to match the can's circumference:height
   const c = cv(w, h)
   const x = c.getContext('2d')!
   // green body
   x.fillStyle = '#1ea64c'
   x.fillRect(0, 0, w, h)
-  // yellow top section with a curved lower boundary
+  // yellow top section with a curved lower boundary (wraps around the top)
   x.fillStyle = '#ffe23a'
   x.beginPath()
   x.moveTo(0, 0)
   x.lineTo(w, 0)
-  x.lineTo(w, h * 0.3)
-  x.quadraticCurveTo(w * 0.5, h * 0.52, 0, h * 0.26)
+  x.lineTo(w, h * 0.34)
+  x.quadraticCurveTo(w * 0.5, h * 0.62, 0, h * 0.3)
   x.closePath()
   x.fill()
+  // green tagline on the yellow band
+  x.fillStyle = '#1c8f43'
+  x.font = 'bold 34px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.textAlign = 'center'
+  x.textBaseline = 'middle'
+  x.fillText('清爽柠檬味汽水', w * 0.5, h * 0.12)
   // lemon dot
   x.fillStyle = '#ffe23a'
   x.beginPath()
-  x.arc(w * 0.66, h * 0.45, 40, 0, 7)
+  x.arc(w * 0.62, h * 0.46, 26, 0, 7)
   x.fill()
-  // green tagline on the yellow
-  x.fillStyle = '#1c8f43'
-  x.font = 'bold 42px "PingFang SC","Microsoft YaHei",sans-serif'
-  x.textAlign = 'left'
-  x.textBaseline = 'middle'
-  x.fillText('清爽柠檬味汽水', w * 0.06, h * 0.17)
-  // big white 雪碧 logo, slanted
+  // big white 雪碧 logo, slight italic slant, natural proportions (no stretch)
   x.save()
-  x.translate(w * 0.46, h * 0.56)
-  x.rotate(-0.12)
+  x.translate(w * 0.5, h * 0.56)
+  x.rotate(-0.1)
   x.fillStyle = '#ffffff'
-  x.font = 'italic bold 250px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.font = 'italic 900 168px "PingFang SC","Microsoft YaHei",sans-serif'
   x.textAlign = 'center'
   x.textBaseline = 'middle'
   x.fillText('雪碧', 0, 0)
   x.restore()
   // white bottom tagline
   x.fillStyle = 'rgba(255,255,255,0.92)'
-  x.font = 'bold 46px "PingFang SC","Microsoft YaHei",sans-serif'
+  x.font = 'bold 34px "PingFang SC","Microsoft YaHei",sans-serif'
   x.textAlign = 'center'
   x.fillText('即刻酷爽', w * 0.5, h * 0.9)
   const t = new THREE.CanvasTexture(c)

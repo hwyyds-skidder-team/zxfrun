@@ -74,6 +74,7 @@ export class ThreeGame {
   private lastFreeLane = 1
   private revives = 0
   private maxRevives = 1
+  private boxGeo = new THREE.BoxGeometry(1, 1, 1)
 
   // player
   private player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false, sliding: false, slideT: 0 }
@@ -221,7 +222,7 @@ export class ThreeGame {
     const sun = new THREE.DirectionalLight(0xffcaa0, 2.1)
     sun.position.set(-14, 16, -8)
     sun.castShadow = true
-    sun.shadow.mapSize.set(2048, 2048)
+    sun.shadow.mapSize.set(1024, 1024)
     const cam = sun.shadow.camera
     cam.near = 1
     cam.far = 80
@@ -255,7 +256,7 @@ export class ThreeGame {
 
     // road
     const roadTex = makeRoadTexture(rng, 3)
-    roadTex.repeat.set(1, 64)
+    roadTex.repeat.set(1, 16)
     this.road = new THREE.Mesh(
       new THREE.PlaneGeometry(ROAD_HALF * 2, 260),
       new THREE.MeshStandardMaterial({ map: roadTex, roughness: 0.66, metalness: 0.0 }),
@@ -413,74 +414,90 @@ export class ThreeGame {
       this.templates.wall = g
     }
 
-    // 巧乐兹 — glossy chocolate bar on a stick with crunchy nibs + vanilla core
+    // 巧乐兹 — chocolate bar with a bitten cut-away revealing the layers:
+    // dark chunky coating → golden biscuit → white vanilla → choc-nut core.
     {
       const g = new THREE.Group()
-      const choc = new THREE.MeshStandardMaterial({ map: makeChocoTexture(), roughness: 0.34, metalness: 0.08 })
-      const bar = new THREE.Mesh(this.rbox(0.66, 1.05, 0.42, 0.2), choc)
+      const choc = new THREE.MeshStandardMaterial({ map: makeChocoTexture(), roughness: 0.36, metalness: 0.06 })
+      const bar = new THREE.Mesh(this.rbox(0.74, 1.55, 0.46, 0.26), choc)
       bar.castShadow = true
       g.add(bar)
-      // a vanilla bite peeking on the front-top
-      const vanilla = new THREE.Mesh(
-        this.rbox(0.34, 0.34, 0.18, 0.12),
-        new THREE.MeshStandardMaterial({ color: 0xfff3d6, roughness: 0.6 }),
+      // cut-away layers stacked toward the front (+z), framed by the chocolate
+      const golden = new THREE.Mesh(
+        this.rbox(0.56, 1.2, 0.08, 0.22),
+        new THREE.MeshStandardMaterial({ color: 0xd9a52e, roughness: 0.55 }),
       )
-      vanilla.position.set(0, 0.34, 0.16)
-      g.add(vanilla)
-      // crunchy nibs scattered on the coating (deterministic)
-      const nibMat = new THREE.MeshStandardMaterial({ color: 0x6b4022, roughness: 0.7 })
-      const nibGeo = new THREE.SphereGeometry(0.055, 8, 6)
-      const rr = mulberry32(13)
-      for (let i = 0; i < 26; i++) {
+      golden.position.set(0, 0.2, 0.21)
+      g.add(golden)
+      const white = new THREE.Mesh(
+        this.rbox(0.42, 1.04, 0.09, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0xfdf4e0, roughness: 0.6 }),
+      )
+      white.position.set(0, 0.22, 0.26)
+      g.add(white)
+      const core = new THREE.Mesh(
+        this.rbox(0.26, 0.92, 0.11, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0x7a4a26, roughness: 0.4 }),
+      )
+      core.position.set(0, 0.24, 0.31)
+      g.add(core)
+      // nut bits embedded in the core
+      const nutMat = new THREE.MeshStandardMaterial({ color: 0xab7740, roughness: 0.6 })
+      const nutGeo = new THREE.SphereGeometry(0.036, 8, 6)
+      const rn = mulberry32(21)
+      for (let i = 0; i < 24; i++) {
+        const n = new THREE.Mesh(nutGeo, nutMat)
+        n.position.set((rn() - 0.5) * 0.18, 0.24 + (rn() - 0.5) * 0.84, 0.37)
+        g.add(n)
+      }
+      // crunchy nibs on the chocolate coating (sides / back / lower-front / bottom)
+      const nibMat = new THREE.MeshStandardMaterial({ color: 0x4a2c14, roughness: 0.75 })
+      const nibGeo = new THREE.SphereGeometry(0.05, 8, 6)
+      const r2 = mulberry32(13)
+      for (let i = 0; i < 46; i++) {
         const nib = new THREE.Mesh(nibGeo, nibMat)
-        const face = Math.floor(rr() * 4)
-        const u = (rr() - 0.5) * 0.5
-        const v = (rr() - 0.5) * 0.92
-        if (face === 0) nib.position.set(u, v, 0.21)
-        else if (face === 1) nib.position.set(u, v, -0.21)
-        else if (face === 2) nib.position.set(0.33, v, u * 0.7)
-        else nib.position.set(-0.33, v, u * 0.7)
+        const face = Math.floor(r2() * 5)
+        const u = (r2() - 0.5) * 0.58
+        const v = (r2() - 0.5) * 1.42
+        if (face === 0) nib.position.set(u, Math.min(v, -0.45), 0.24) // lower front only
+        else if (face === 1) nib.position.set(u, v, -0.24)
+        else if (face === 2) nib.position.set(0.37, v, (r2() - 0.5) * 0.36)
+        else if (face === 3) nib.position.set(-0.37, v, (r2() - 0.5) * 0.36)
+        else nib.position.set(u, -0.79, (r2() - 0.5) * 0.36)
         g.add(nib)
       }
-      // glossy highlight
-      const gloss = new THREE.Mesh(
-        this.rbox(0.12, 0.7, 0.04, 0.05),
-        new THREE.MeshStandardMaterial({ color: 0x7a4a22, roughness: 0.15, metalness: 0.2 }),
-      )
-      gloss.position.set(-0.18, 0.05, 0.22)
-      g.add(gloss)
       const stick = new THREE.Mesh(
-        this.rbox(0.14, 0.6, 0.14, 0.06),
+        this.rbox(0.15, 0.7, 0.15, 0.06),
         new THREE.MeshStandardMaterial({ color: 0xe6c489, roughness: 0.85 }),
       )
-      stick.position.y = -0.78
+      stick.position.y = -1.0
       g.add(stick)
       this.templates.ice = g
     }
 
-    // 雪碧 — aluminium green can with silver top, pull-tab and white swoosh
+    // 雪碧 — tall aluminium green can with silver top + pull-tab; wrapped label
     {
       const g = new THREE.Group()
       const green = new THREE.MeshStandardMaterial({
         map: makeSpriteLabel(),
-        roughness: 0.28,
+        roughness: 0.26,
         metalness: 0.55,
       })
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.05, 36), green)
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.5, 40), green)
       body.castShadow = true
       g.add(body)
-      const silver = new THREE.MeshStandardMaterial({ color: 0xccd2d6, roughness: 0.28, metalness: 0.9 })
-      const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.335, 0.12, 30), silver)
-      topRim.position.y = 0.56
+      const silver = new THREE.MeshStandardMaterial({ color: 0xccd2d6, roughness: 0.26, metalness: 0.9 })
+      const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.305, 0.12, 36), silver)
+      topRim.position.y = 0.78
       g.add(topRim)
-      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.285, 0.285, 0.03, 28), silver)
-      lid.position.y = 0.625
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.255, 0.255, 0.03, 32), silver)
+      lid.position.y = 0.85
       g.add(lid)
-      const botRim = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.3, 0.1, 30), silver)
-      botRim.position.y = -0.56
+      const botRim = new THREE.Mesh(new THREE.CylinderGeometry(0.305, 0.27, 0.1, 36), silver)
+      botRim.position.y = -0.78
       g.add(botRim)
-      const tab = new THREE.Mesh(this.rbox(0.17, 0.02, 0.1, 0.01), silver)
-      tab.position.set(0, 0.645, 0.04)
+      const tab = new THREE.Mesh(this.rbox(0.16, 0.02, 0.1, 0.01), silver)
+      tab.position.set(0, 0.87, 0.04)
       g.add(tab)
       this.templates.sprite = g
     }
@@ -635,9 +652,10 @@ export class ThreeGame {
     const w = 4 + this.cityRng() * 5
     const d = 4 + this.cityRng() * 6
     const mat = this.facadeMats[Math.floor(this.cityRng() * this.facadeMats.length)]
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat)
-    // anchor the INNER face beyond the sidewalk (account for half the width),
-    // so wide buildings never poke onto the road
+    // shared unit-box geometry scaled per building (no per-building allocation)
+    const mesh = new THREE.Mesh(this.boxGeo, mat)
+    mesh.scale.set(w, h, d)
+    // anchor the INNER face beyond the sidewalk (account for half the width)
     const x = side * (ROAD_HALF + 2.4 + this.cityRng() * 4 + w / 2)
     mesh.position.set(x, h / 2, z)
     return { mesh, z, side, height: h }
@@ -963,8 +981,8 @@ export class ThreeGame {
   }
   private spawnObj(type: ObjType, lane: number, z: number) {
     const mesh = this.obtain(type)
-    // collectibles float and spin; obstacles sit on the ground
-    const baseY = type === 'ice' || type === 'sprite' ? 1.05 : 0
+    // collectibles float; obstacles sit on the ground
+    const baseY = type === 'ice' ? 1.35 : type === 'sprite' ? 1.1 : 0
     mesh.position.set(LANES[lane], baseY, z)
     mesh.rotation.set(0, 0, 0)
     this.objs.push({ type, lane, z, resolved: false, done: false, mesh })
@@ -1064,7 +1082,8 @@ export class ThreeGame {
 
     // scroll road texture + recycle buildings (also in menu for an idle vibe)
     const roadMat = this.road.material as THREE.MeshStandardMaterial
-    if (roadMat.map) roadMat.map.offset.y -= scroll * dt * 0.25
+    // scroll the dashes at EXACTLY world speed (repeat 16 over the 260 length)
+    if (roadMat.map) roadMat.map.offset.y -= scroll * dt * (16 / 260)
     for (const b of this.buildings) {
       b.mesh.position.z += scroll * dt
       if (b.mesh.position.z > 20) this.recycleBuilding(b)
@@ -1084,7 +1103,7 @@ export class ThreeGame {
 
     // lane lerp
     const targetX = LANES[this.player.lane]
-    this.player.displayX += (targetX - this.player.displayX) * Math.min(1, dt * 14)
+    this.player.displayX += (targetX - this.player.displayX) * Math.min(1, dt * 22)
 
     // jump physics
     if (this.player.jumping) {
@@ -1132,9 +1151,13 @@ export class ThreeGame {
     for (const o of this.objs) {
       o.z += this.speed * dt
       o.mesh.position.z = o.z
-      if (o.type === 'ice' || o.type === 'sprite') {
-        o.mesh.rotation.y += dt * 1.9
-        o.mesh.position.y = 1.05 + Math.sin(this.time * 2.6 + o.z * 0.4) * 0.09
+      if (o.type === 'sprite') {
+        o.mesh.rotation.y += dt * 1.6
+        o.mesh.position.y = 1.1 + Math.sin(this.time * 2.6 + o.z * 0.4) * 0.09
+      } else if (o.type === 'ice') {
+        // keep the bitten cut-away facing the camera: gentle sway + slight tilt
+        o.mesh.rotation.set(-0.08, Math.sin(this.time * 1.4 + o.z * 0.3) * 0.4, -0.12)
+        o.mesh.position.y = 1.35 + Math.sin(this.time * 2.4 + o.z * 0.4) * 0.09
       }
       if (!o.resolved && o.z >= 0) {
         o.resolved = true
@@ -1205,8 +1228,8 @@ export class ThreeGame {
     const h = 7 + this.cityRng() * 34
     const w = 4 + this.cityRng() * 5
     const d = 4 + this.cityRng() * 6
-    b.mesh.geometry.dispose()
-    b.mesh.geometry = new THREE.BoxGeometry(w, h, d)
+    // just rescale the shared geometry — no allocation, no GC stutter
+    b.mesh.scale.set(w, h, d)
     b.mesh.material = this.facadeMats[Math.floor(this.cityRng() * this.facadeMats.length)]
     b.height = h
     const x = b.side * (ROAD_HALF + 2.4 + this.cityRng() * 4 + w / 2)
