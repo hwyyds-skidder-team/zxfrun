@@ -1,4 +1,4 @@
-export type Screen = 'menu' | 'playing' | 'over'
+export type Screen = 'menu' | 'playing' | 'paused' | 'over'
 
 // barrier = jump over · treadmill = switch lane · overhead = slide under
 export type ObjType = 'ice' | 'sprite' | 'barrier' | 'treadmill' | 'overhead'

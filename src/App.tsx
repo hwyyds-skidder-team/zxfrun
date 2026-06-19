@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { ThreeGame as Game } from './three/ThreeGame'
 import type { GameOverInfo } from './game/types'
+import { Pause } from 'lucide-react'
 import { Hud, type HudHandles } from './components/Hud'
 import { StartScreen } from './components/StartScreen'
 import { GameOverScreen } from './components/GameOverScreen'
+import { PauseScreen } from './components/PauseScreen'
 
-type Screen = 'menu' | 'playing' | 'over'
+type Screen = 'menu' | 'playing' | 'paused' | 'over'
 
 const BGM_URL = `${import.meta.env.BASE_URL}bgm.mp3`
 
@@ -88,6 +90,15 @@ export default function App() {
     playAudio()
   }
 
+  const handlePause = () => {
+    gameRef.current?.pause()
+    setScreen('paused')
+  }
+  const handleResume = () => {
+    gameRef.current?.resume()
+    setScreen('playing')
+  }
+
   const toggleMute = () => {
     setMuted((m) => {
       const next = !m
@@ -106,6 +117,12 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const k = e.key.toLowerCase()
       if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault()
+      if (k === 'p' || k === 'escape') {
+        if (screen === 'playing') handlePause()
+        else if (screen === 'paused') handleResume()
+        return
+      }
+      if (screen === 'paused') return
       if (screen !== 'playing') {
         if (k === ' ' || k === 'enter') handleStart()
         return
@@ -176,6 +193,12 @@ export default function App() {
 
         <Hud muted={muted} onToggleMute={toggleMute} refs={hudRefs} />
 
+        {screen === 'playing' && (
+          <button className="pause-btn" onClick={handlePause} aria-label="暂停">
+            <Pause size={20} />
+          </button>
+        )}
+
         {speech && screen === 'playing' && (
           <div className="speech" key={speech.id}>
             <span>{speech.text}</span>
@@ -184,6 +207,14 @@ export default function App() {
         )}
 
         {screen === 'menu' && <StartScreen best={best} onPlay={handleStart} />}
+        {screen === 'paused' && (
+          <PauseScreen
+            muted={muted}
+            onResume={handleResume}
+            onRestart={handleStart}
+            onToggleMute={toggleMute}
+          />
+        )}
         {screen === 'over' && overInfo && (
           <GameOverScreen info={overInfo} onRestart={handleStart} />
         )}

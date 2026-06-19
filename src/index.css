@@ -151,6 +151,54 @@ body {
   transform: scale(0.92);
 }
 
+.pause-btn {
+  position: absolute;
+  top: calc(max(14px, env(safe-area-inset-top)) + 92px);
+  right: max(62px, calc((100% - 760px) / 2 + 62px));
+  pointer-events: auto;
+  cursor: pointer;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 14, 40, 0.55);
+  backdrop-filter: blur(6px);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.08s;
+}
+.pause-btn:active {
+  transform: scale(0.92);
+}
+
+.pause-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.pill {
+  pointer-events: auto;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  transition: transform 0.08s, background 0.12s;
+}
+.pill:active {
+  transform: translateY(1px) scale(0.98);
+}
+
 .sugar-wrap {
   position: absolute;
   left: 50%;
