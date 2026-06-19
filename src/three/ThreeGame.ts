@@ -665,19 +665,31 @@ export class ThreeGame {
     const hairMat = new THREE.MeshStandardMaterial({ color: 0x241f2c, roughness: 0.8 })
     const glassMat = new THREE.MeshStandardMaterial({ color: 0x222028, roughness: 0.4, metalness: 0.3 })
 
-    const torso = new THREE.Mesh(this.rbox(0.64, 0.82, 0.4, 0.18), tracksuit)
-    torso.position.y = 1.15
+    // torso: tapered (chest wider than waist) for a more human shape
+    const torso = new THREE.Mesh(this.rbox(0.58, 0.86, 0.36, 0.16), tracksuit)
+    torso.position.y = 1.16
+    torso.scale.set(1, 1, 1)
     torso.castShadow = true
     root.add(torso)
     this.parts.torso = torso
-
+    // chest (shoulders) — wider block at the top
+    const chest = new THREE.Mesh(this.rbox(0.7, 0.3, 0.4, 0.16), tracksuit)
+    chest.position.set(0, 0.32, 0)
+    chest.castShadow = true
+    torso.add(chest)
+    // rounded shoulder caps
+    for (const sx of [-0.33, 0.33]) {
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.15, 12, 10), tracksuit)
+      cap.position.set(sx, 0.34, 0)
+      torso.add(cap)
+    }
     // white side stripes
-    for (const sx of [-0.32, 0.32]) {
+    for (const sx of [-0.29, 0.29]) {
       const st = new THREE.Mesh(
-        this.rbox(0.07, 0.66, 0.41, 0.03),
+        this.rbox(0.06, 0.7, 0.37, 0.03),
         new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 }),
       )
-      st.position.set(sx, 0, 0)
+      st.position.set(sx, -0.02, 0)
       torso.add(st)
     }
 

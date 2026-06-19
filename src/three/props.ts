@@ -76,11 +76,30 @@ export function makeCar(rng: Rng): THREE.Group {
   body.castShadow = true
   g.add(body)
   const cabin = new THREE.Mesh(
-    rbox(1.55, 0.55, 2.0, 0.26),
-    new THREE.MeshStandardMaterial({ color: 0x10151c, roughness: 0.2, metalness: 0.4 }),
+    rbox(1.5, 0.55, 2.0, 0.26),
+    new THREE.MeshStandardMaterial({ color: 0x0c1118, roughness: 0.2, metalness: 0.4 }),
   )
   cabin.position.set(0, 1.0, -0.2)
   g.add(cabin)
+  // glass windows
+  const glass = new THREE.MeshStandardMaterial({ color: 0x86b4d6, roughness: 0.12, metalness: 0.3 })
+  const windshield = new THREE.Mesh(rbox(1.36, 0.42, 0.06, 0.05), glass)
+  windshield.position.set(0, 1.05, -1.2)
+  windshield.rotation.x = 0.32
+  g.add(windshield)
+  const rearGlass = new THREE.Mesh(rbox(1.36, 0.4, 0.06, 0.05), glass)
+  rearGlass.position.set(0, 1.05, 0.78)
+  rearGlass.rotation.x = -0.32
+  g.add(rearGlass)
+  for (const sx of [-0.77, 0.77]) {
+    const side = new THREE.Mesh(rbox(0.06, 0.34, 1.5, 0.04), glass)
+    side.position.set(sx, 1.05, -0.2)
+    g.add(side)
+    // mirror
+    const mir = new THREE.Mesh(rbox(0.12, 0.1, 0.18, 0.04), bodyMat)
+    mir.position.set(sx + sx * 0.12, 0.92, -0.95)
+    g.add(mir)
+  }
   const wheelMat = new THREE.MeshStandardMaterial({ color: 0x121214, roughness: 0.8 })
   for (const wx of [-0.85, 0.85])
     for (const wz of [-1.2, 1.2]) {
