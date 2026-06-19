@@ -1,12 +1,14 @@
-import { RotateCcw, Candy, AlertTriangle } from 'lucide-react'
+import { RotateCcw, Candy, AlertTriangle, HeartPulse } from 'lucide-react'
 import type { GameOverInfo } from '../game/types'
 
 interface Props {
   info: GameOverInfo
+  canRevive: boolean
+  onRevive: () => void
   onRestart: () => void
 }
 
-export function GameOverScreen({ info, onRestart }: Props) {
+export function GameOverScreen({ info, canRevive, onRevive, onRestart }: Props) {
   const isSugar = info.reason === 'sugar'
   return (
     <div className="screen">
@@ -21,8 +23,13 @@ export function GameOverScreen({ info, onRestart }: Props) {
         <div className="big-score">{info.score}</div>
         <div className="best-line">最高分 {info.best}</div>
       </div>
-      <button className="btn" onClick={onRestart}>
-        <RotateCcw size={20} /> 再来一局
+      {canRevive && (
+        <button className="btn revive" onClick={onRevive}>
+          <HeartPulse size={20} /> 原地复活
+        </button>
+      )}
+      <button className={canRevive ? 'pill' : 'btn'} onClick={onRestart}>
+        <RotateCcw size={canRevive ? 18 : 20} /> 再来一局
       </button>
       <div className="tip">
         {isSugar
