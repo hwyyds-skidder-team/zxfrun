@@ -644,6 +644,15 @@ export class ThreeGame {
   setMuted(m: boolean) {
     this.sound.setMuted(m)
   }
+  pause() {
+    if (this.state === 'playing') this.state = 'paused'
+  }
+  resume() {
+    if (this.state === 'paused') {
+      this.clock.getDelta() // drop the paused gap so we don't jump on resume
+      this.state = 'playing'
+    }
+  }
 
   moveLane(dir: number) {
     if (this.state !== 'playing') return
@@ -789,7 +798,7 @@ export class ThreeGame {
   }
 
   private update(dt: number) {
-    if (this.state === 'over') return
+    if (this.state === 'over' || this.state === 'paused') return
     this.time += dt
     const scroll = this.state === 'playing' ? this.speed : 7
 
@@ -863,6 +872,13 @@ export class ThreeGame {
       o.mesh.position.z = o.z
       if (!o.resolved && o.z >= 0) {
         o.resolved = true
+        const obstacle = o.type === 'barrier' || o.type === 'treadmill' || o.type === 'overhead'
+        if (obstacle && Math.abs(o.lane - this.player.lane) === 1) {
+          // near miss: threaded past an obstacle one lane over
+          this.collectScore += 8
+          this.sound.whoosh()
+          this.burst(o.mesh.position, 0xffffff, 6, 3)
+        }
         if (o.lane === this.player.lane) {
           if (o.type === 'barrier') {
             if (feet < CLEAR_H) return this.gameOver('crash')
@@ -948,6 +964,7 @@ export class ThreeGame {
   private animate(_dt: number) {
     const p = this.parts
     if (!p.torso) return
+    if (this.state === 'paused') return
     this.root.position.x = this.player.displayX
     this.root.position.y = this.player.y
 

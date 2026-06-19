@@ -93,4 +93,8 @@ export class SoundManager {
   click() {
     this.tone({ freq: 600, dur: 0.05, type: 'square', gain: 0.18 })
   }
+  whoosh() {
+    this.tone({ freq: 1300, to: 320, dur: 0.16, type: 'sawtooth', gain: 0.1 })
+    this.noise(0.13, 0.1, 2600)
+  }
 }
