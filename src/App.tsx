@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ThreeGame as Game } from './three/ThreeGame'
 import type { GameOverInfo } from './game/types'
 import { Pause, ArrowUp, ArrowDown, MoveHorizontal } from 'lucide-react'
@@ -10,12 +10,19 @@ import { PauseScreen } from './components/PauseScreen'
 type Screen = 'menu' | 'playing' | 'paused' | 'over'
 
 const BGM_URL = `${import.meta.env.BASE_URL}bgm.mp3`
+const AUTOPLAY_PARAM = (() => {
+  const value = new URLSearchParams(window.location.search).get('autoplay')
+  return value !== null && value !== '0' && value !== 'false'
+})()
 
 export default function App() {
   const stageRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
   const gameRef = useRef<Game | null>(null)
+  const mutedRef = useRef(false)
+  const screenRef = useRef<Screen>('menu')
+  const pendingAudioResumeRef = useRef(false)
   const hudRefs = useRef<HudHandles>({
     score: null,
     dist: null,
@@ -32,6 +39,48 @@ export default function App() {
   const [showHint, setShowHint] = useState(false)
   const hintTimer = useRef<number | undefined>(undefined)
   const [best, setBest] = useState<number>(() => Number(localStorage.getItem('zxfrun_best') || 0))
+
+  useEffect(() => {
+    mutedRef.current = muted
+  }, [muted])
+
+  useEffect(() => {
+    screenRef.current = screen
+  }, [screen])
+
+  const playAudio = useCallback((allowDeferred = true) => {
+    const a = audioRef.current
+    if (!a) return
+    if (mutedRef.current) {
+      pendingAudioResumeRef.current = false
+      a.pause()
+      return
+    }
+    a.volume = 0.55
+    const attempt = a.play()
+    if (!attempt) {
+      pendingAudioResumeRef.current = false
+      return
+    }
+    void attempt
+      .then(() => {
+        pendingAudioResumeRef.current = false
+      })
+      .catch(() => {
+        pendingAudioResumeRef.current = allowDeferred
+      })
+  }, [])
+
+  const startRun = useCallback(() => {
+    gameRef.current?.start()
+    setOverInfo(null)
+    setSpeech(null)
+    setScreen('playing')
+    setShowHint(true)
+    window.clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => setShowHint(false), 4500)
+    playAudio()
+  }, [playAudio])
 
   // create the engine once
   useEffect(() => {
@@ -71,58 +120,71 @@ export default function App() {
     const ro = new ResizeObserver(applySize)
     ro.observe(stage)
 
+    if (AUTOPLAY_PARAM) {
+      requestAnimationFrame(() => {
+        if (gameRef.current === game && screenRef.current === 'menu') startRun()
+      })
+    }
+
     return () => {
+      window.clearTimeout(hintTimer.current)
       ro.disconnect()
+      if ((window as unknown as { __zxfGame?: Game }).__zxfGame === game) {
+        delete (window as unknown as { __zxfGame?: Game }).__zxfGame
+      }
       game.destroy()
     }
-  }, [])
+  }, [startRun])
 
-  const playAudio = () => {
-    const a = audioRef.current
-    if (!a || muted) return
-    a.volume = 0.55
-    a.play().catch(() => {})
-  }
+  useEffect(() => {
+    const resumeDeferredAudio = () => {
+      if (!pendingAudioResumeRef.current) return
+      if (screenRef.current !== 'playing') return
+      playAudio(false)
+    }
+    window.addEventListener('pointerdown', resumeDeferredAudio, { passive: true })
+    window.addEventListener('keydown', resumeDeferredAudio)
+    return () => {
+      window.removeEventListener('pointerdown', resumeDeferredAudio)
+      window.removeEventListener('keydown', resumeDeferredAudio)
+    }
+  }, [playAudio])
 
-  const handleStart = () => {
-    gameRef.current?.start()
-    setOverInfo(null)
-    setSpeech(null)
-    setScreen('playing')
-    setShowHint(true)
-    window.clearTimeout(hintTimer.current)
-    hintTimer.current = window.setTimeout(() => setShowHint(false), 4500)
-    playAudio()
-  }
-
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     gameRef.current?.pause()
     setShowHint(false)
     setScreen('paused')
-  }
-  const handleRevive = () => {
+  }, [])
+
+  const handleRevive = useCallback(() => {
     gameRef.current?.revive()
     setOverInfo(null)
     setScreen('playing')
     playAudio()
-  }
-  const handleResume = () => {
+  }, [playAudio])
+
+  const handleResume = useCallback(() => {
     gameRef.current?.resume()
     setScreen('playing')
-  }
+  }, [])
 
-  const toggleMute = () => {
+  const toggleMute = useCallback(() => {
     setMuted((m) => {
       const next = !m
+      mutedRef.current = next
       const a = audioRef.current
       if (a) {
-        if (next) a.pause()
-        else a.play().catch(() => {})
+        if (next) {
+          pendingAudioResumeRef.current = false
+          a.pause()
+        } else {
+          playAudio()
+        }
       }
       gameRef.current?.setMuted(next)
       return next
     })
-  }
+  }, [playAudio])
 
   // keyboard input
   useEffect(() => {
@@ -136,7 +198,7 @@ export default function App() {
       }
       if (screen === 'paused') return
       if (screen !== 'playing') {
-        if (k === ' ' || k === 'enter') handleStart()
+        if (k === ' ' || k === 'enter') startRun()
         return
       }
       const g = gameRef.current
@@ -148,8 +210,7 @@ export default function App() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen])
+  }, [handlePause, handleResume, screen, startRun])
 
   // touch input (swipe up/down/left/right + tap)
   useEffect(() => {
@@ -201,7 +262,7 @@ export default function App() {
     <div className="app">
       <div className="stage" ref={stageRef}>
         <canvas ref={canvasRef} className="game-canvas" />
-        <audio ref={audioRef} src={BGM_URL} loop preload="auto" />
+        <audio ref={audioRef} src={BGM_URL} loop preload="auto" autoPlay={AUTOPLAY_PARAM} />
 
         <Hud muted={muted} onToggleMute={toggleMute} refs={hudRefs} />
 
@@ -232,12 +293,12 @@ export default function App() {
           </div>
         )}
 
-        {screen === 'menu' && <StartScreen best={best} onPlay={handleStart} />}
+        {screen === 'menu' && <StartScreen best={best} onPlay={startRun} />}
         {screen === 'paused' && (
           <PauseScreen
             muted={muted}
             onResume={handleResume}
-            onRestart={handleStart}
+            onRestart={startRun}
             onToggleMute={toggleMute}
           />
         )}
@@ -246,7 +307,7 @@ export default function App() {
             info={overInfo}
             canRevive={gameRef.current?.canRevive() ?? false}
             onRevive={handleRevive}
-            onRestart={handleStart}
+            onRestart={startRun}
           />
         )}
       </div>

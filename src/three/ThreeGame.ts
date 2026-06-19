@@ -50,6 +50,42 @@ interface Building {
   height: number
 }
 
+function disposeMaterial(
+  material: THREE.Material,
+  seenMaterials: Set<THREE.Material>,
+  seenTextures: Set<THREE.Texture>,
+) {
+  if (seenMaterials.has(material)) return
+  seenMaterials.add(material)
+  for (const value of Object.values(material as unknown as Record<string, unknown>)) {
+    if (value instanceof THREE.Texture && !seenTextures.has(value)) {
+      seenTextures.add(value)
+      value.dispose()
+    }
+  }
+  material.dispose()
+}
+
+function disposeObject3D(
+  root: THREE.Object3D,
+  seenGeometries: Set<THREE.BufferGeometry>,
+  seenMaterials: Set<THREE.Material>,
+  seenTextures: Set<THREE.Texture>,
+) {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh
+    if (mesh.geometry instanceof THREE.BufferGeometry && !seenGeometries.has(mesh.geometry)) {
+      seenGeometries.add(mesh.geometry)
+      mesh.geometry.dispose()
+    }
+    if (Array.isArray(mesh.material)) {
+      for (const material of mesh.material) disposeMaterial(material, seenMaterials, seenTextures)
+    } else if (mesh.material instanceof THREE.Material) {
+      disposeMaterial(mesh.material, seenMaterials, seenTextures)
+    }
+  })
+}
+
 export class ThreeGame {
   private cb: GameCallbacks
   private renderer: THREE.WebGLRenderer
@@ -812,6 +848,20 @@ export class ThreeGame {
 
   destroy() {
     cancelAnimationFrame(this.raf)
+    this.sound.destroy()
+    const seenGeometries = new Set<THREE.BufferGeometry>()
+    const seenMaterials = new Set<THREE.Material>()
+    const seenTextures = new Set<THREE.Texture>()
+    disposeObject3D(this.scene, seenGeometries, seenMaterials, seenTextures)
+    for (const template of Object.values(this.templates)) {
+      disposeObject3D(template, seenGeometries, seenMaterials, seenTextures)
+    }
+    for (const pool of Object.values(this.pools)) {
+      for (const mesh of pool) disposeObject3D(mesh, seenGeometries, seenMaterials, seenTextures)
+    }
+    this.composer?.dispose()
+    this.scene.clear()
+    this.renderer.renderLists.dispose()
     this.renderer.dispose()
   }
 
@@ -1182,9 +1232,9 @@ export class ThreeGame {
         this.objs.splice(i, 1)
       }
     }
+    this.refreshScore()
     if (this.sugar >= 100) return this.gameOver('sugar')
 
-    this.score = Math.floor(this.totalDist) + this.collectScore
     this.cb.onHud({
       score: this.score,
       distanceM: Math.floor(this.totalDist),
@@ -1196,6 +1246,10 @@ export class ThreeGame {
   private collect(pts: number, sug: number) {
     this.collectScore += pts
     this.sugar = Math.min(100, this.sugar + sug)
+  }
+
+  private refreshScore() {
+    this.score = Math.floor(this.totalDist) + this.collectScore
   }
 
   private recycleBuilding(b: Building) {
@@ -1214,6 +1268,8 @@ export class ThreeGame {
   }
 
   private gameOver(reason: GameOverReason) {
+    if (this.state === 'over') return
+    this.refreshScore()
     this.state = 'over'
     this.shake = reason === 'crash' ? 0.5 : 0.3
     if (reason === 'crash') this.sound.crash()

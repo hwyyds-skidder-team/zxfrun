@@ -27,6 +27,13 @@ export class SoundManager {
     if (this.master) this.master.gain.value = m ? 0 : this.vol
   }
 
+  destroy() {
+    const ctx = this.ctx
+    this.ctx = null
+    this.master = null
+    if (ctx && ctx.state !== 'closed') void ctx.close().catch(() => {})
+  }
+
   private tone(opts: {
     freq: number
     to?: number
