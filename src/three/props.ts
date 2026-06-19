@@ -1,5 +1,9 @@
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
 import type { Rng } from './textures'
+
+const rbox = (w: number, h: number, d: number, r: number) =>
+  new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2))
 
 // Reusable street-prop template factories. Each returns a THREE.Group that the
 // engine clones and recycles along the street. Kept emissive-only (no extra
@@ -67,12 +71,12 @@ export function makeCar(rng: Rng): THREE.Group {
   const g = new THREE.Group()
   const color = CAR_COLORS[Math.floor(rng() * CAR_COLORS.length)]
   const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.5 })
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 3.8), bodyMat)
+  const body = new THREE.Mesh(rbox(1.7, 0.6, 3.8, 0.28), bodyMat)
   body.position.y = 0.55
   body.castShadow = true
   g.add(body)
   const cabin = new THREE.Mesh(
-    new THREE.BoxGeometry(1.55, 0.5, 2.0),
+    rbox(1.55, 0.55, 2.0, 0.26),
     new THREE.MeshStandardMaterial({ color: 0x10151c, roughness: 0.2, metalness: 0.4 }),
   )
   cabin.position.set(0, 1.0, -0.2)
