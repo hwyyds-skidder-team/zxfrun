@@ -8,6 +8,9 @@ import type { GameCallbacks, GameOverReason, ObjType, Screen } from '../game/typ
 import { makeFacadeTexture, makeRoadTexture, mulberry32, type Rng } from './textures'
 import { makeCar, makeLamp, makeTree } from './props'
 import { SoundManager } from '../game/sound'
+import { applySky, type SkyTargets } from './sky'
+
+const PHASE_DIST = 420 // metres of running per time-of-day phase
 
 // ---- world constants (units) ----
 const LANE_X = 2.0
@@ -87,6 +90,11 @@ export class ThreeGame {
 
   // env
   private road!: THREE.Mesh
+  private skyMat!: THREE.ShaderMaterial
+  private sunDisc!: THREE.Mesh
+  private hemi!: THREE.HemisphereLight
+  private sunLight!: THREE.DirectionalLight
+  private sky!: SkyTargets
   private sound = new SoundManager()
   private shake = 0
 
@@ -111,6 +119,13 @@ export class ThreeGame {
 
     this.buildSky()
     this.buildLights()
+    this.sky = {
+      skyMat: this.skyMat,
+      fog: this.scene.fog as THREE.Fog,
+      hemi: this.hemi,
+      sun: this.sunLight,
+      sunDisc: this.sunDisc,
+    }
     this.buildRoad()
     this.buildTemplates()
     this.buildCity()
@@ -160,6 +175,7 @@ export class ThreeGame {
         }`,
     })
     this.scene.add(new THREE.Mesh(geo, mat))
+    this.skyMat = mat
 
     // sun disc
     const sun = new THREE.Mesh(
@@ -168,11 +184,13 @@ export class ThreeGame {
     )
     sun.position.set(0, 6, -150)
     this.scene.add(sun)
+    this.sunDisc = sun
   }
 
   private buildLights() {
     const hemi = new THREE.HemisphereLight(0xffb489, 0x20203a, 0.85)
     this.scene.add(hemi)
+    this.hemi = hemi
 
     const sun = new THREE.DirectionalLight(0xffcaa0, 2.1)
     sun.position.set(-14, 16, -8)
@@ -189,6 +207,7 @@ export class ThreeGame {
     this.scene.add(sun)
     this.scene.add(sun.target)
     sun.target.position.set(0, 0, -6)
+    this.sunLight = sun
 
     // warm fill from the sun side
     const fill = new THREE.DirectionalLight(0xff8a5a, 0.5)
@@ -452,6 +471,11 @@ export class ThreeGame {
     this.props.push({ type, mesh, side, z })
   }
 
+  private updateSky() {
+    const phase = this.totalDist / PHASE_DIST + (this.state === 'menu' ? this.time * 0.03 : 0)
+    applySky(this.sky, phase)
+  }
+
   private updateProps(dist: number) {
     for (const p of this.props) {
       p.z += dist
@@ -711,6 +735,9 @@ export class ThreeGame {
   }
   // test-only: advance the simulation deterministically (no rendering), so
   // gameplay assertions don't depend on headless render FPS.
+  debugSetDist(d: number) {
+    this.totalDist = d
+  }
   debugTick(seconds: number) {
     let r = seconds
     while (r > 1e-6) {
@@ -816,6 +843,7 @@ export class ThreeGame {
       if (b.mesh.position.z > 20) this.recycleBuilding(b)
     }
     this.updateProps(scroll * dt)
+    this.updateSky()
 
     if (this.state === 'menu') {
       this.runCycle += dt * 5
