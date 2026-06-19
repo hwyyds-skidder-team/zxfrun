@@ -34,7 +34,7 @@ export function GameOverScreen({ info, canRevive, onRevive, onRestart }: Props) 
       <div className="tip">
         {isSugar
           ? '提示：别在短时间内连吃猛喝，让糖分槽降下来再补给。'
-          : '提示：跑步机必须换道躲避，护栏可以跳过去。'}
+          : '提示：护栏和跑步机跳过去，高墙要换道躲，横杆要滑铲。'}
       </div>
     </div>
   )

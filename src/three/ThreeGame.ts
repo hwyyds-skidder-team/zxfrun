@@ -21,9 +21,9 @@ const LANE_OBJ_W = 1.7
 const SPAWN_Z = -100
 const DESPAWN_Z = 14
 const KMH = 5
-const JUMP_V0 = 8.6
-const GRAVITY = 20
-const CLEAR_H = 0.75 // feet height to clear a low barrier / fly over a pickup
+const JUMP_V0 = 9.6
+const GRAVITY = 19
+const CLEAR_H = 0.62 // feet height that counts as "cleared" a low obstacle
 
 const SPEECH_LINES = ['你跑不过我，你信吗？', '再加把劲，跟上！', '这点距离，不算什么！']
 
@@ -86,6 +86,7 @@ export class ThreeGame {
     ice: [],
     sprite: [],
     overhead: [],
+    wall: [],
   }
   private templates: Record<string, THREE.Object3D> = {}
   private buildings: Building[] = []
@@ -337,46 +338,72 @@ export class ThreeGame {
       this.templates.barrier = g
     }
 
-    // treadmill template (must switch lane)
+    // treadmill template — LOW so it can be jumped over
     {
       const g = new THREE.Group()
       const deck = new THREE.Mesh(
-        this.rbox(LANE_OBJ_W, 0.46, 1.7, 0.14),
+        this.rbox(LANE_OBJ_W, 0.34, 1.5, 0.12),
         new THREE.MeshStandardMaterial({ color: 0x262b36, roughness: 0.6, metalness: 0.3 }),
       )
-      deck.position.y = 0.23
+      deck.position.y = 0.17
       deck.castShadow = true
       g.add(deck)
       const belt = new THREE.Mesh(
-        this.rbox(1.2, 0.08, 1.45, 0.04),
+        this.rbox(1.2, 0.08, 1.3, 0.04),
         new THREE.MeshStandardMaterial({ color: 0x14161d, roughness: 0.5 }),
       )
-      belt.position.y = 0.48
+      belt.position.y = 0.36
       g.add(belt)
       const railMat = new THREE.MeshStandardMaterial({ color: 0xaab2c0, roughness: 0.4, metalness: 0.6 })
       for (const sx of [-0.72, 0.72]) {
-        const rail = new THREE.Mesh(this.rbox(0.13, 1.0, 1.7, 0.06), railMat)
-        rail.position.set(sx, 0.5, 0)
+        const rail = new THREE.Mesh(this.rbox(0.12, 0.5, 1.5, 0.05), railMat)
+        rail.position.set(sx, 0.34, 0)
         rail.castShadow = true
         g.add(rail)
       }
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5, 10), railMat)
-      post.rotation.z = Math.PI / 2
-      post.position.set(0, 1.0, -0.78)
-      g.add(post)
+      // low front console
       const screen = new THREE.Mesh(
-        this.rbox(1.1, 0.58, 0.1, 0.05),
+        this.rbox(1.0, 0.3, 0.1, 0.05),
         new THREE.MeshStandardMaterial({ color: 0x0c1018 }),
       )
-      screen.position.set(0, 1.26, -0.82)
+      screen.position.set(0, 0.62, -0.7)
+      screen.rotation.x = -0.5
       g.add(screen)
       const scr = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.85, 0.36),
+        new THREE.PlaneGeometry(0.78, 0.18),
         new THREE.MeshStandardMaterial({ color: 0x37e0b0, emissive: 0x37e0b0, emissiveIntensity: 1.6 }),
       )
-      scr.position.set(0, 1.26, -0.76)
+      scr.position.set(0, 0.63, -0.65)
+      scr.rotation.x = -0.5
       g.add(scr)
       this.templates.treadmill = g
+    }
+
+    // wall template — TALL concrete barrier, must switch lane (cannot jump)
+    {
+      const g = new THREE.Group()
+      const concrete = new THREE.MeshStandardMaterial({ color: 0x8b8a86, roughness: 0.95 })
+      const wall = new THREE.Mesh(this.rbox(LANE_OBJ_W, 2.3, 0.5, 0.08), concrete)
+      wall.position.y = 1.15
+      wall.castShadow = true
+      g.add(wall)
+      // hazard chevrons
+      for (let i = -1; i <= 1; i++) {
+        const ch = new THREE.Mesh(
+          this.rbox(LANE_OBJ_W - 0.2, 0.34, 0.06, 0.03),
+          new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? 0xf0a01e : 0x1a1a1c }),
+        )
+        ch.position.set(0, 1.15 + i * 0.42, 0.26)
+        g.add(ch)
+      }
+      // top warning light
+      const light = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 12),
+        new THREE.MeshStandardMaterial({ color: 0xff4d3a, emissive: 0xff3a28, emissiveIntensity: 2 }),
+      )
+      light.position.set(0, 2.42, 0)
+      g.add(light)
+      this.templates.wall = g
     }
 
     // 巧乐兹 — glossy chocolate bar on a stick with crunchy nibs + vanilla core
@@ -964,10 +991,11 @@ export class ThreeGame {
         continue
       }
       const k = Math.random()
-      if (k < 0.34) this.spawnObj('barrier', i, z)
-      else if (k < 0.5) this.spawnObj('treadmill', i, z)
-      else if (k < 0.64) this.spawnObj('overhead', i, z)
-      else if (k < 0.82) this.spawnObj(Math.random() < 0.5 ? 'ice' : 'sprite', i, z)
+      if (k < 0.28) this.spawnObj('barrier', i, z)
+      else if (k < 0.46) this.spawnObj('treadmill', i, z)
+      else if (k < 0.58) this.spawnObj('overhead', i, z)
+      else if (k < 0.7) this.spawnObj('wall', i, z)
+      else if (k < 0.86) this.spawnObj(Math.random() < 0.5 ? 'ice' : 'sprite', i, z)
     }
     this.lastFreeLane = free
   }
@@ -1108,7 +1136,8 @@ export class ThreeGame {
       }
       if (!o.resolved && o.z >= 0) {
         o.resolved = true
-        const obstacle = o.type === 'barrier' || o.type === 'treadmill' || o.type === 'overhead'
+        const obstacle =
+          o.type === 'barrier' || o.type === 'treadmill' || o.type === 'overhead' || o.type === 'wall'
         if (obstacle && Math.abs(o.lane - this.player.lane) === 1) {
           // near miss: threaded past an obstacle one lane over
           this.collectScore += 8
@@ -1116,9 +1145,11 @@ export class ThreeGame {
           this.burst(o.mesh.position, 0xffffff, 6, 3)
         }
         if (o.lane === this.player.lane) {
-          if (o.type === 'barrier') {
+          if (o.type === 'barrier' || o.type === 'treadmill') {
+            // low obstacles — jump over them
             if (feet < CLEAR_H) return this.gameOver('crash')
-          } else if (o.type === 'treadmill') {
+          } else if (o.type === 'wall') {
+            // tall — must switch lane (jumping/sliding won't help)
             return this.gameOver('crash')
           } else if (o.type === 'overhead') {
             if (!this.player.sliding) return this.gameOver('crash')
