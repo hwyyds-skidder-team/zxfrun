@@ -106,11 +106,23 @@
   .disc{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:10px;opacity:.45;}
   .controlsRow{display:flex;gap:14px;margin-top:4px;}
   @media (max-width:520px){.hint .keys{display:none;}}
+
+  /* mute button */
+  #muteBtn{
+    position:absolute;top:74px;right:14px;pointer-events:auto;cursor:pointer;
+    width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.18);
+    background:rgba(20,14,40,.55);backdrop-filter:blur(6px);
+    color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;
+    transition:transform .08s;
+  }
+  #muteBtn:active{transform:scale(.92);}
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game"></canvas>
+  <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+  <button id="muteBtn" title="音乐开关">🔊</button>
 
   <!-- HUD -->
   <div class="hud" id="hud">
@@ -290,11 +302,31 @@ cvs.addEventListener('touchend',e=>{
 document.getElementById('playBtn').onclick=startGame;
 document.getElementById('againBtn').onclick=startGame;
 
+// ---------- background music ----------
+const bgm=document.getElementById('bgm');
+const muteBtn=document.getElementById('muteBtn');
+let muted=false;
+bgm.volume=0.55;
+function playBGM(){
+  if(muted)return;
+  // called from a user gesture (button/key) so autoplay policy is satisfied
+  const pr=bgm.play();
+  if(pr&&pr.catch)pr.catch(()=>{});
+}
+muteBtn.onclick=(e)=>{
+  e.stopPropagation();
+  muted=!muted;
+  muteBtn.textContent=muted?'🔇':'🔊';
+  if(muted){bgm.pause();}
+  else{playBGM();}
+};
+
 function startGame(){
   reset();
   state='playing';
   elMenu.classList.add('hidden');
   elOver.classList.add('hidden');
+  playBGM();
 }
 
 // ---------- update ----------
