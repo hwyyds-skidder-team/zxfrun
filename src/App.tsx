@@ -100,6 +100,12 @@ export default function App() {
     setShowHint(false)
     setScreen('paused')
   }
+  const handleRevive = () => {
+    gameRef.current?.revive()
+    setOverInfo(null)
+    setScreen('playing')
+    playAudio()
+  }
   const handleResume = () => {
     gameRef.current?.resume()
     setScreen('playing')
@@ -236,7 +242,12 @@ export default function App() {
           />
         )}
         {screen === 'over' && overInfo && (
-          <GameOverScreen info={overInfo} onRestart={handleStart} />
+          <GameOverScreen
+            info={overInfo}
+            canRevive={gameRef.current?.canRevive() ?? false}
+            onRevive={handleRevive}
+            onRestart={handleStart}
+          />
         )}
       </div>
     </div>

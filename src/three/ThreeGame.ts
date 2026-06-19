@@ -32,6 +32,7 @@ interface Obj3 {
   lane: number
   z: number
   resolved: boolean
+  done: boolean
   mesh: THREE.Object3D
 }
 
@@ -64,6 +65,8 @@ export class ThreeGame {
   private runCycle = 0
   private distSinceSpawn = 0
   private lastFreeLane = 1
+  private revives = 0
+  private maxRevives = 1
 
   // player
   private player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false, sliding: false, slideT: 0 }
@@ -794,6 +797,7 @@ export class ThreeGame {
     this.sugar = 0
     this.distSinceSpawn = 0
     this.lastFreeLane = 1
+    this.revives = 0
     this.runCycle = 0
     this.speakTimer = 3
     this.speakHold = 0
@@ -809,6 +813,35 @@ export class ThreeGame {
   setMuted(m: boolean) {
     this.sound.setMuted(m)
   }
+  canRevive() {
+    return this.state === 'over' && this.revives < this.maxRevives
+  }
+  revive() {
+    if (!this.canRevive()) return
+    this.revives++
+    // clear everything near the player so the run can resume safely
+    for (let i = this.objs.length - 1; i >= 0; i--) {
+      if (this.objs[i].z > -22) {
+        this.release(this.objs[i])
+        this.objs.splice(i, 1)
+      }
+    }
+    this.player.lane = 1
+    this.player.displayX = 0
+    this.player.y = 0
+    this.player.vy = 0
+    this.player.jumping = false
+    this.player.sliding = false
+    this.player.slideT = 0
+    this.sugar = Math.max(0, this.sugar - 45)
+    this.root.rotation.set(0, 0, 0)
+    this.shake = 0
+    this.lastFreeLane = 1
+    this.cb.onSpeak(null)
+    this.sound.resume()
+    this.state = 'playing'
+  }
+
   pause() {
     if (this.state === 'playing') this.state = 'paused'
   }
@@ -905,7 +938,7 @@ export class ThreeGame {
     const baseY = type === 'ice' || type === 'sprite' ? 1.05 : 0
     mesh.position.set(LANES[lane], baseY, z)
     mesh.rotation.set(0, 0, 0)
-    this.objs.push({ type, lane, z, resolved: false, mesh })
+    this.objs.push({ type, lane, z, resolved: false, done: false, mesh })
   }
 
   // ---------------- spawn (fair, dense) ----------------
@@ -1093,21 +1126,25 @@ export class ThreeGame {
             if (feet < CLEAR_H) {
               this.collect(50, 15)
               this.sound.coin()
-              this.burst(o.mesh.position, 0xffd27a, 14, 4)
+              this.burst(o.mesh.position, 0xffd27a, 16, 4)
+              o.done = true
+              o.mesh.visible = false
             }
           } else if (o.type === 'sprite') {
             if (feet < CLEAR_H) {
               this.collect(30, 11)
               this.sound.drink()
-              this.burst(o.mesh.position, 0x7cfc9a, 14, 4)
+              this.burst(o.mesh.position, 0x7cfc9a, 16, 4)
+              o.done = true
+              o.mesh.visible = false
             }
           }
         }
       }
     }
-    // recycle passed objects
+    // recycle passed or consumed objects
     for (let i = this.objs.length - 1; i >= 0; i--) {
-      if (this.objs[i].z > DESPAWN_Z) {
+      if (this.objs[i].z > DESPAWN_Z || this.objs[i].done) {
         this.release(this.objs[i])
         this.objs.splice(i, 1)
       }
