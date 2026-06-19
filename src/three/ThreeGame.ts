@@ -60,7 +60,7 @@ export class ThreeGame {
   private lastFreeLane = 1
 
   // player
-  private player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false }
+  private player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false, sliding: false, slideT: 0 }
   private root = new THREE.Group()
   private parts: Record<string, THREE.Object3D> = {}
 
@@ -76,6 +76,7 @@ export class ThreeGame {
     treadmill: [],
     ice: [],
     sprite: [],
+    overhead: [],
   }
   private templates: Record<string, THREE.Object3D> = {}
   private buildings: Building[] = []
@@ -370,6 +371,32 @@ export class ThreeGame {
       g.position.y = 1.0
       this.templates.sprite = g
     }
+
+    // overhead banner (slide under)
+    {
+      const g = new THREE.Group()
+      const postMat = new THREE.MeshStandardMaterial({ color: 0x4a4f59, roughness: 0.6, metalness: 0.4 })
+      for (const lx of [-1.5, 1.5]) {
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.8, 8), postMat)
+        post.position.set(lx, 1.4, 0)
+        post.castShadow = true
+        g.add(post)
+      }
+      const banner = new THREE.Mesh(
+        new THREE.BoxGeometry(3.3, 0.95, 0.22),
+        new THREE.MeshStandardMaterial({ color: 0xc23b4a, roughness: 0.75 }),
+      )
+      banner.position.set(0, 2.15, 0)
+      banner.castShadow = true
+      g.add(banner)
+      const stripe = new THREE.Mesh(
+        new THREE.PlaneGeometry(3.0, 0.32),
+        new THREE.MeshStandardMaterial({ color: 0xffd24a, emissive: 0xffc233, emissiveIntensity: 1.3 }),
+      )
+      stripe.position.set(0, 2.15, 0.12)
+      g.add(stripe)
+      this.templates.overhead = g
+    }
   }
 
   private buildCity() {
@@ -594,7 +621,7 @@ export class ThreeGame {
   start() {
     for (const o of this.objs) this.release(o)
     this.objs = []
-    this.player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false }
+    this.player = { lane: 1, displayX: 0, y: 0, vy: 0, jumping: false, sliding: false, slideT: 0 }
     this.speed = 8
     this.totalDist = 0
     this.score = 0
@@ -624,11 +651,25 @@ export class ThreeGame {
   }
   jump() {
     if (this.state !== 'playing') return
+    if (this.player.sliding) {
+      this.player.sliding = false
+      this.player.slideT = 0
+    }
     if (!this.player.jumping) {
       this.player.jumping = true
       this.player.vy = JUMP_V0
       this.sound.jump()
     }
+  }
+  slide() {
+    if (this.state !== 'playing') return
+    // slam down if airborne, then crouch-slide
+    this.player.jumping = false
+    this.player.vy = 0
+    this.player.y = 0
+    if (!this.player.sliding) this.sound.land()
+    this.player.sliding = true
+    this.player.slideT = 0.62
   }
 
   getBest() {
@@ -645,6 +686,9 @@ export class ThreeGame {
   }
   isAirborne() {
     return this.player.y > CLEAR_H
+  }
+  isSliding() {
+    return this.player.sliding
   }
   debugForceObstacle(type: ObjType) {
     if (this.state !== 'playing') return
@@ -703,9 +747,10 @@ export class ThreeGame {
         continue
       }
       const k = Math.random()
-      if (k < 0.42) this.spawnObj('barrier', i, z)
-      else if (k < 0.6) this.spawnObj('treadmill', i, z)
-      else if (k < 0.78) this.spawnObj(Math.random() < 0.5 ? 'ice' : 'sprite', i, z)
+      if (k < 0.34) this.spawnObj('barrier', i, z)
+      else if (k < 0.5) this.spawnObj('treadmill', i, z)
+      else if (k < 0.64) this.spawnObj('overhead', i, z)
+      else if (k < 0.82) this.spawnObj(Math.random() < 0.5 ? 'ice' : 'sprite', i, z)
     }
     this.lastFreeLane = free
   }
@@ -782,6 +827,10 @@ export class ThreeGame {
         this.burst(new THREE.Vector3(this.player.displayX, 0.1, 0), 0x9a8f86, 7, 2, 0.2)
       }
     }
+    if (this.player.sliding) {
+      this.player.slideT -= dt
+      if (this.player.slideT <= 0) this.player.sliding = false
+    }
 
     // sugar decay
     this.sugar = Math.max(0, this.sugar - 9 * dt)
@@ -819,6 +868,8 @@ export class ThreeGame {
             if (feet < CLEAR_H) return this.gameOver('crash')
           } else if (o.type === 'treadmill') {
             return this.gameOver('crash')
+          } else if (o.type === 'overhead') {
+            if (!this.player.sliding) return this.gameOver('crash')
           } else if (o.type === 'ice') {
             if (feet < CLEAR_H) {
               this.collect(50, 15)
@@ -909,6 +960,20 @@ export class ThreeGame {
 
     const t = this.runCycle
     const air = this.player.jumping
+    if (this.player.sliding) {
+      // crouch-slide: lean back, knees up, low torso
+      p.legLHip.rotation.x = -1.5
+      p.legRHip.rotation.x = -1.5
+      p.legLKnee.rotation.x = 1.7
+      p.legRKnee.rotation.x = 1.7
+      p.armLHip.rotation.x = -0.7
+      p.armRHip.rotation.x = -0.7
+      p.torso.position.y = 0.78
+      this.root.rotation.x = THREE.MathUtils.lerp(this.root.rotation.x, -0.95, 0.35)
+      this.root.rotation.z = THREE.MathUtils.lerp(this.root.rotation.z, 0, 0.2)
+      this.camera.lookAt(this.player.displayX * 0.5, 1.2, -10)
+      return
+    }
     if (air) {
       // tucked jump pose
       p.legLHip.rotation.x = -0.9

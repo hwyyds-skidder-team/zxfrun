@@ -115,6 +115,7 @@ export default function App() {
       if (k === 'arrowleft' || k === 'a') g.moveLane(-1)
       else if (k === 'arrowright' || k === 'd') g.moveLane(1)
       else if (k === 'arrowup' || k === 'w' || k === ' ') g.jump()
+      else if (k === 'arrowdown' || k === 's') g.slide()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -155,6 +156,7 @@ export default function App() {
       }
       if (adx > ady) g.moveLane(dx > 0 ? 1 : -1)
       else if (dy < 0) g.jump()
+      else g.slide()
     }
     window.addEventListener('touchstart', onStart, { passive: true })
     window.addEventListener('touchmove', onMove, { passive: false })
