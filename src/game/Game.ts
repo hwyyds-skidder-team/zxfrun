@@ -39,6 +39,7 @@ export class Game {
   // sizing
   private W = 0
   private H = 0
+  private artScale = 1
 
   // state
   private state: Screen = 'menu'
@@ -77,10 +78,20 @@ export class Game {
   getBest() {
     return this.best
   }
+  // small accessors (used for automated input testing)
+  isAirborne() {
+    return this.player.yOff < -1
+  }
+  getLane() {
+    return this.player.lane
+  }
 
   resize(w: number, h: number, dpr: number) {
     this.W = w
     this.H = h
+    // scale the art to the viewport so it looks good on phones and big tablets
+    const ref = Math.min(w, h * 0.62)
+    this.artScale = Math.max(0.82, Math.min(ref / 430, 1.9))
     const c = this.ctx.canvas
     c.width = Math.max(1, Math.floor(w * dpr))
     c.height = Math.max(1, Math.floor(h * dpr))
@@ -129,7 +140,7 @@ export class Game {
     return this.H * 0.3
   }
   private laneSpacingPx() {
-    return Math.min(this.W * 0.2, 118)
+    return Math.max(72, Math.min(this.W * 0.21, 190))
   }
   private project(d: number, laneMul: number) {
     const p = FOCAL / (FOCAL + Math.max(d, -0.5))
@@ -174,25 +185,11 @@ export class Game {
     const pr = this.project(d, laneMul)
     this.particles.push({ kind: 'text', text, color, x: pr.x, y: pr.y - 30 * pr.p, life: 1, vy: -40 })
   }
-  private stars(x: number, y: number) {
-    for (let i = 0; i < 10; i++) {
-      this.particles.push({
-        kind: 'star',
-        x,
-        y,
-        vx: (Math.random() - 0.5) * 120,
-        vy: -Math.random() * 150 - 40,
-        life: 1,
-        rot: Math.random() * 6.28,
-      })
-    }
-  }
-
   private gameOver(reason: GameOverReason) {
     this.state = 'over'
-    this.shake = 0.4
+    this.shake = 0
+    this.particles = []
     this.cb.onSpeak(null)
-    if (reason === 'sugar') this.stars(this.W / 2, this.H * PLAYER_Y_FACTOR - 40)
     if (this.score > this.best) {
       this.best = this.score
       localStorage.setItem('zxfrun_best', String(this.best))
@@ -224,8 +221,10 @@ export class Game {
   }
 
   private update(dt: number) {
+    // Game over: freeze the whole scene — nothing advances.
+    if (this.state === 'over') return
     this.time += dt
-    if (this.state !== 'playing') {
+    if (this.state === 'menu') {
       this.runCycle += dt * 4
       this.updateParticles(dt)
       return
@@ -337,6 +336,7 @@ export class Game {
     this.drawGround()
     this.drawScenery()
     this.drawRoadMarks()
+    if (this.state === 'playing') this.drawSpeedLines()
     const sorted = this.objs.slice().sort((a, b) => b.d - a.d)
     for (const o of sorted) this.drawObject(o)
     this.drawPlayer()
@@ -412,10 +412,30 @@ export class Game {
     ctx.stroke()
   }
 
+  private drawSpeedLines() {
+    const intensity = Math.min(1, Math.max(0, (this.speed - 9) / 15))
+    if (intensity < 0.05) return
+    const ctx = this.ctx
+    ctx.lineCap = 'round'
+    for (let i = 0; i < 7; i++) {
+      const laneMul = ((i % 3) - 1) * 1.35 + (i < 3 ? 0 : 0.4)
+      const ph = (this.time * 3 + i * 0.27) % 1
+      const d = (1 - ph) * 6
+      const p0 = this.project(d + 0.6, laneMul)
+      const p1 = this.project(d, laneMul)
+      ctx.strokeStyle = `rgba(255,255,255,${intensity * 0.16 * ph})`
+      ctx.lineWidth = Math.max(1.5, 5 * p1.p)
+      ctx.beginPath()
+      ctx.moveTo(p0.x, p0.y)
+      ctx.lineTo(p1.x, p1.y)
+      ctx.stroke()
+    }
+  }
+
   private drawRoadMarks() {
     const ctx = this.ctx
     const seg = 2.2
-    const phase = (this.state === 'playing' ? this.totalDist : this.time * 4) % seg
+    const phase = (this.state === 'menu' ? this.time * 4 : this.totalDist) % seg
     for (const laneMul of [-0.5, 0.5]) {
       for (let i = 0; i < 14; i++) {
         const d0 = i * seg - phase
@@ -436,7 +456,7 @@ export class Game {
   private drawScenery() {
     const ctx = this.ctx
     const seg = 4.0
-    const phase = (this.state === 'playing' ? this.totalDist : this.time * 4) % seg
+    const phase = (this.state === 'menu' ? this.time * 4 : this.totalDist) % seg
     for (const side of [-1, 1]) {
       for (let i = 0; i < 9; i++) {
         const d = i * seg - phase + (side < 0 ? 0 : 2.0)
@@ -467,10 +487,10 @@ export class Game {
     const laneMul = LANES[o.lane]
     const pr = this.project(o.d, laneMul)
     if (pr.p <= 0.02) return
-    const bob = Math.sin(this.time * 4 + o.bob) * 4 * pr.p
+    const s = pr.p * this.artScale
+    const bob = Math.sin(this.time * 4 + o.bob) * 4 * s
     const x = pr.x
     const y = pr.y + bob
-    const s = pr.p
     ctx.fillStyle = 'rgba(0,0,0,.28)'
     ctx.beginPath()
     ctx.ellipse(pr.x, pr.y + 4 * s, 28 * s, 9 * s, 0, 0, 7)
@@ -486,7 +506,7 @@ export class Game {
     const baseY = this.H * PLAYER_Y_FACTOR
     const x = this.W / 2 + (this.player.displayLane - 1) * this.laneSpacingPx()
     const y = baseY + this.player.yOff
-    const s = Math.min(this.W / 420, 1.25)
+    const s = this.artScale * 1.05
     const sh = 1 - Math.min(0.6, -this.player.yOff / 120)
     ctx.fillStyle = 'rgba(0,0,0,.3)'
     ctx.beginPath()
