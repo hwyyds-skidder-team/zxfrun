@@ -53,6 +53,11 @@ export default function App() {
     })
     gameRef.current = game
 
+    // debug handle for automated input tests (only when ?debug is present)
+    if (new URLSearchParams(window.location.search).has('debug')) {
+      ;(window as unknown as { __zxfGame?: Game }).__zxfGame = game
+    }
+
     const applySize = () => {
       const rect = stage.getBoundingClientRect()
       const dpr = Math.min(window.devicePixelRatio || 1, 2)
@@ -115,36 +120,48 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screen])
 
-  // touch input
+  // touch input (swipe up/down/left/right + tap)
   useEffect(() => {
-    const stage = stageRef.current
-    if (!stage) return
     let tx = 0
     let ty = 0
+    let tracking = false
     const onStart = (e: TouchEvent) => {
       const t = e.changedTouches[0]
       tx = t.clientX
       ty = t.clientY
+      tracking = true
+    }
+    const onMove = (e: TouchEvent) => {
+      // stop the browser from scrolling / pull-to-refresh eating the swipe
+      if (screen === 'playing') e.preventDefault()
     }
     const onEnd = (e: TouchEvent) => {
+      if (!tracking) return
+      tracking = false
       if (screen !== 'playing') return
+      // let taps on buttons (e.g. mute) behave normally
+      if ((e.target as HTMLElement | null)?.closest('button')) return
       const g = gameRef.current
       if (!g) return
       const t = e.changedTouches[0]
       const dx = t.clientX - tx
       const dy = t.clientY - ty
-      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) {
+      const adx = Math.abs(dx)
+      const ady = Math.abs(dy)
+      if (adx < 18 && ady < 18) {
         g.jump()
         return
       }
-      if (Math.abs(dx) > Math.abs(dy)) g.moveLane(dx > 0 ? 1 : -1)
+      if (adx > ady) g.moveLane(dx > 0 ? 1 : -1)
       else if (dy < 0) g.jump()
     }
-    stage.addEventListener('touchstart', onStart, { passive: true })
-    stage.addEventListener('touchend', onEnd, { passive: true })
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onEnd, { passive: true })
     return () => {
-      stage.removeEventListener('touchstart', onStart)
-      stage.removeEventListener('touchend', onEnd)
+      window.removeEventListener('touchstart', onStart)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onEnd)
     }
   }, [screen])
 
