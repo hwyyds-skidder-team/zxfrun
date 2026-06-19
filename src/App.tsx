@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Game } from './game/Game'
+import { ThreeGame as Game } from './three/ThreeGame'
 import type { GameOverInfo } from './game/types'
 import { Hud, type HudHandles } from './components/Hud'
 import { StartScreen } from './components/StartScreen'
