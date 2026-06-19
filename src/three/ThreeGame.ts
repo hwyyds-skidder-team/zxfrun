@@ -6,6 +6,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import type { GameCallbacks, GameOverReason, ObjType, Screen } from '../game/types'
 import { makeFacadeTexture, makeRoadTexture, mulberry32, type Rng } from './textures'
 import { makeCar, makeLamp, makeTree } from './props'
+import { SoundManager } from '../game/sound'
 
 // ---- world constants (units) ----
 const LANE_X = 2.0
@@ -84,6 +85,8 @@ export class ThreeGame {
 
   // env
   private road!: THREE.Mesh
+  private sound = new SoundManager()
+  private shake = 0
 
   constructor(canvas: HTMLCanvasElement, cb: GameCallbacks) {
     this.cb = cb
@@ -557,9 +560,15 @@ export class ThreeGame {
     this.speakHold = 0
     this.speakIdx = 0
     this.root.rotation.set(0, 0, 0)
+    this.shake = 0
     this.seedRoad()
+    this.sound.resume()
     this.cb.onSpeak(null)
     this.state = 'playing'
+  }
+
+  setMuted(m: boolean) {
+    this.sound.setMuted(m)
   }
 
   moveLane(dir: number) {
@@ -571,6 +580,7 @@ export class ThreeGame {
     if (!this.player.jumping) {
       this.player.jumping = true
       this.player.vy = JUMP_V0
+      this.sound.jump()
     }
   }
 
@@ -669,8 +679,19 @@ export class ThreeGame {
     if (dt > 0.05) dt = 0.05
     this.update(dt)
     this.animate(dt)
+    // camera shake (kept as a transient offset so it doesn't drift the base)
+    const ox = this.camera.position.x
+    const oy = this.camera.position.y
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt)
+      const s = this.shake * 0.9
+      this.camera.position.x += (Math.random() - 0.5) * s
+      this.camera.position.y += (Math.random() - 0.5) * s
+    }
     if (this.composer) this.composer.render()
     else this.renderer.render(this.scene, this.camera)
+    this.camera.position.x = ox
+    this.camera.position.y = oy
     this.raf = requestAnimationFrame(this.loop)
   }
 
@@ -709,6 +730,7 @@ export class ThreeGame {
         this.player.y = 0
         this.player.jumping = false
         this.player.vy = 0
+        this.sound.land()
       }
     }
 
@@ -749,9 +771,15 @@ export class ThreeGame {
           } else if (o.type === 'treadmill') {
             return this.gameOver('crash')
           } else if (o.type === 'ice') {
-            if (feet < CLEAR_H) this.collect(50, 15)
+            if (feet < CLEAR_H) {
+              this.collect(50, 15)
+              this.sound.coin()
+            }
           } else if (o.type === 'sprite') {
-            if (feet < CLEAR_H) this.collect(30, 11)
+            if (feet < CLEAR_H) {
+              this.collect(30, 11)
+              this.sound.drink()
+            }
           }
         }
       }
@@ -796,6 +824,9 @@ export class ThreeGame {
 
   private gameOver(reason: GameOverReason) {
     this.state = 'over'
+    this.shake = reason === 'crash' ? 0.5 : 0.3
+    if (reason === 'crash') this.sound.crash()
+    else this.sound.faint()
     this.cb.onSpeak(null)
     if (this.score > this.best) {
       this.best = this.score
@@ -850,8 +881,13 @@ export class ThreeGame {
     )
     this.root.rotation.x = THREE.MathUtils.lerp(this.root.rotation.x, 0, 0.2)
 
-    // camera subtle follow
+    // camera subtle follow + speed FOV ramp
     this.camera.position.x += (this.player.displayX * 0.35 - this.camera.position.x) * 0.08
+    const fovTarget = 58 + Math.min(1, (this.speed - 8) / 18) * 9
+    if (Math.abs(this.camera.fov - fovTarget) > 0.05) {
+      this.camera.fov += (fovTarget - this.camera.fov) * 0.05
+      this.camera.updateProjectionMatrix()
+    }
     this.camera.lookAt(this.player.displayX * 0.5, 1.2, -10)
   }
 }
