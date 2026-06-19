@@ -944,7 +944,7 @@ export class ThreeGame {
 
     this.speed = Math.min(8 + this.totalDist * 0.04, 26)
     this.totalDist += this.speed * dt
-    this.runCycle += dt * this.speed * 1.6
+    this.runCycle += dt * (6 + this.speed * 0.5)
 
     // lane lerp
     const targetX = LANES[this.player.lane]
@@ -1129,24 +1129,48 @@ export class ThreeGame {
       p.legRKnee.rotation.x = 1.0
       p.armLHip.rotation.x = -2.0
       p.armRHip.rotation.x = -2.0
+      p.armLKnee.rotation.x = 0.4
+      p.armRKnee.rotation.x = 0.4
+      p.torso.rotation.set(0.08, 0, 0)
+      p.head.rotation.set(0, 0, 0)
+      p.head.position.y = 1.78
+      p.torso.position.y = 1.15
     } else {
+      // natural run cycle
       const s = Math.sin(t)
       const s2 = Math.sin(t + Math.PI)
-      p.legLHip.rotation.x = s * 0.9
-      p.legRHip.rotation.x = s2 * 0.9
-      p.legLKnee.rotation.x = Math.max(0, -s) * 1.2 + 0.1
-      p.legRKnee.rotation.x = Math.max(0, -s2) * 1.2 + 0.1
-      p.armLHip.rotation.x = s2 * 0.8
-      p.armRHip.rotation.x = s * 0.8
-      p.armLKnee.rotation.x = 0.5
-      p.armRKnee.rotation.x = 0.5
-      p.torso.position.y = 1.15 + Math.abs(Math.sin(t)) * 0.04
-      p.head.rotation.z = Math.sin(t) * 0.03
+      const c2 = Math.cos(t * 2) // double-stride for vertical bob
+
+      // legs: thigh swings, knee flexes hard on the forward (recovery) swing
+      p.legLHip.rotation.x = s * 1.05
+      p.legRHip.rotation.x = s2 * 1.05
+      p.legLKnee.rotation.x = Math.max(0, s) * 1.7 + 0.14
+      p.legRKnee.rotation.x = Math.max(0, s2) * 1.7 + 0.14
+
+      // arms: opposite to legs, elbows flex through the swing
+      p.armLHip.rotation.x = s2 * 0.95
+      p.armRHip.rotation.x = s * 0.95
+      p.armLKnee.rotation.x = 0.55 + Math.max(0, s2) * 0.6
+      p.armRKnee.rotation.x = 0.55 + Math.max(0, s) * 0.6
+
+      // torso: forward lean + shoulder counter-twist + breathing bob
+      p.torso.rotation.x = 0.16
+      p.torso.rotation.y = -s * 0.18
+      p.torso.position.y = 1.15 - c2 * 0.03
+
+      // head: stays roughly level (counter-twist), tiny bob
+      p.head.rotation.x = -0.08
+      p.head.rotation.y = s * 0.07
+      p.head.position.y = 1.78 - c2 * 0.02
+
+      // whole-body vertical bob (push-off) + subtle side sway
+      this.root.position.y = this.player.y + Math.abs(s) * 0.07
+      this.root.position.x = this.player.displayX + s * 0.035
     }
-    // lean slightly into lane changes
+    // lean into lane changes (root tilt handles the lateral lean; torso handles forward lean)
     this.root.rotation.z = THREE.MathUtils.lerp(
       this.root.rotation.z,
-      (LANES[this.player.lane] - this.player.displayX) * 0.12,
+      (LANES[this.player.lane] - this.player.displayX) * 0.14,
       0.2,
     )
     this.root.rotation.x = THREE.MathUtils.lerp(this.root.rotation.x, 0, 0.2)
