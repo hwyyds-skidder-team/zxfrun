@@ -88,6 +88,9 @@ export class ThreeGame {
   private sound = new SoundManager()
   private shake = 0
 
+  // particles
+  private particles: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number; max: number }[] = []
+
   constructor(canvas: HTMLCanvasElement, cb: GameCallbacks) {
     this.cb = cb
     this.best = Number(localStorage.getItem('zxfrun_best') || 0)
@@ -111,6 +114,7 @@ export class ThreeGame {
     this.buildCity()
     this.buildProps()
     this.buildPlayer()
+    this.buildParticles()
 
     try {
       const composer = new EffectComposer(this.renderer)
@@ -527,6 +531,49 @@ export class ThreeGame {
     this.parts.armRKnee = armR.knee
   }
 
+  private buildParticles() {
+    const geo = new THREE.IcosahedronGeometry(0.1, 0)
+    for (let i = 0; i < 60; i++) {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true }))
+      m.visible = false
+      this.scene.add(m)
+      this.particles.push({ mesh: m, vel: new THREE.Vector3(), life: 0, max: 1 })
+    }
+  }
+
+  private burst(pos: THREE.Vector3, color: number, count: number, spd: number, up = 0.5) {
+    let placed = 0
+    for (const p of this.particles) {
+      if (placed >= count) break
+      if (p.life > 0) continue
+      placed++
+      p.mesh.position.copy(pos)
+      ;(p.mesh.material as THREE.MeshBasicMaterial).color.setHex(color)
+      p.mesh.visible = true
+      const a = Math.random() * Math.PI * 2
+      const r = (0.4 + Math.random()) * spd
+      p.vel.set(Math.cos(a) * r * 0.6, (Math.random() * 0.8 + up) * spd, Math.sin(a) * r * 0.6 - 1)
+      p.life = 0.45 + Math.random() * 0.4
+      p.max = p.life
+    }
+  }
+
+  private updateParticles(dt: number) {
+    for (const p of this.particles) {
+      if (p.life <= 0) continue
+      p.life -= dt
+      if (p.life <= 0) {
+        p.mesh.visible = false
+        continue
+      }
+      p.vel.y -= 11 * dt
+      p.mesh.position.addScaledVector(p.vel, dt)
+      const k = p.life / p.max
+      p.mesh.scale.setScalar(0.35 + 0.85 * k)
+      ;(p.mesh.material as THREE.MeshBasicMaterial).opacity = Math.min(1, k * 1.4)
+    }
+  }
+
   // ---------------- API ----------------
   resize(w: number, h: number, dpr: number) {
     this.renderer.setPixelRatio(Math.min(dpr, 2))
@@ -679,6 +726,7 @@ export class ThreeGame {
     if (dt > 0.05) dt = 0.05
     this.update(dt)
     this.animate(dt)
+    this.updateParticles(dt) // runs even on game-over so crash debris settles
     // camera shake (kept as a transient offset so it doesn't drift the base)
     const ox = this.camera.position.x
     const oy = this.camera.position.y
@@ -731,6 +779,7 @@ export class ThreeGame {
         this.player.jumping = false
         this.player.vy = 0
         this.sound.land()
+        this.burst(new THREE.Vector3(this.player.displayX, 0.1, 0), 0x9a8f86, 7, 2, 0.2)
       }
     }
 
@@ -774,11 +823,13 @@ export class ThreeGame {
             if (feet < CLEAR_H) {
               this.collect(50, 15)
               this.sound.coin()
+              this.burst(o.mesh.position, 0xffd27a, 14, 4)
             }
           } else if (o.type === 'sprite') {
             if (feet < CLEAR_H) {
               this.collect(30, 11)
               this.sound.drink()
+              this.burst(o.mesh.position, 0x7cfc9a, 14, 4)
             }
           }
         }
@@ -827,6 +878,13 @@ export class ThreeGame {
     this.shake = reason === 'crash' ? 0.5 : 0.3
     if (reason === 'crash') this.sound.crash()
     else this.sound.faint()
+    this.burst(
+      new THREE.Vector3(this.player.displayX, 1, 0),
+      reason === 'crash' ? 0xff7a3a : 0xffd27a,
+      24,
+      6,
+      0.8,
+    )
     this.cb.onSpeak(null)
     if (this.score > this.best) {
       this.best = this.score
