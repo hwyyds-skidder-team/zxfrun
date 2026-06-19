@@ -647,6 +647,18 @@ export class ThreeGame {
     this.parts.armLKnee = armL.knee
     this.parts.armRHip = armR.hip
     this.parts.armRKnee = armR.knee
+    // hands at the wrists
+    for (const arm of [armL, armR]) {
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), skin)
+      hand.position.y = -0.32
+      hand.castShadow = true
+      arm.knee.add(hand)
+    }
+
+    // neck
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.16, 12), skin)
+    neck.position.y = 1.6
+    root.add(neck)
   }
 
   private buildParticles() {
