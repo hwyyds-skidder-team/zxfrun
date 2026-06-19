@@ -96,6 +96,7 @@ export default function App() {
         if (next) a.pause()
         else a.play().catch(() => {})
       }
+      gameRef.current?.setMuted(next)
       return next
     })
   }
