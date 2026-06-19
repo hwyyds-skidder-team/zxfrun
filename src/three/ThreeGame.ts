@@ -370,40 +370,92 @@ export class ThreeGame {
       this.templates.treadmill = g
     }
 
-    // 巧乐兹 (ice cream bar)
+    // 巧乐兹 — glossy chocolate bar on a stick with crunchy nibs + vanilla core
     {
       const g = new THREE.Group()
-      const bar = new THREE.Mesh(
-        this.rbox(0.72, 1.0, 0.36, 0.16),
-        new THREE.MeshStandardMaterial({ color: 0x5a3014, roughness: 0.5 }),
-      )
+      const choc = new THREE.MeshStandardMaterial({ color: 0x3f2410, roughness: 0.32, metalness: 0.08 })
+      const bar = new THREE.Mesh(this.rbox(0.66, 1.05, 0.42, 0.2), choc)
       bar.castShadow = true
       g.add(bar)
-      const stick = new THREE.Mesh(
-        this.rbox(0.12, 0.5, 0.12, 0.05),
-        new THREE.MeshStandardMaterial({ color: 0xd9a566, roughness: 0.8 }),
+      // a vanilla bite peeking on the front-top
+      const vanilla = new THREE.Mesh(
+        this.rbox(0.34, 0.34, 0.18, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0xfff3d6, roughness: 0.6 }),
       )
-      stick.position.y = -0.72
+      vanilla.position.set(0, 0.34, 0.16)
+      g.add(vanilla)
+      // crunchy nibs scattered on the coating (deterministic)
+      const nibMat = new THREE.MeshStandardMaterial({ color: 0x6b4022, roughness: 0.7 })
+      const nibGeo = new THREE.SphereGeometry(0.055, 8, 6)
+      const rr = mulberry32(13)
+      for (let i = 0; i < 26; i++) {
+        const nib = new THREE.Mesh(nibGeo, nibMat)
+        const face = Math.floor(rr() * 4)
+        const u = (rr() - 0.5) * 0.5
+        const v = (rr() - 0.5) * 0.92
+        if (face === 0) nib.position.set(u, v, 0.21)
+        else if (face === 1) nib.position.set(u, v, -0.21)
+        else if (face === 2) nib.position.set(0.33, v, u * 0.7)
+        else nib.position.set(-0.33, v, u * 0.7)
+        g.add(nib)
+      }
+      // glossy highlight
+      const gloss = new THREE.Mesh(
+        this.rbox(0.12, 0.7, 0.04, 0.05),
+        new THREE.MeshStandardMaterial({ color: 0x7a4a22, roughness: 0.15, metalness: 0.2 }),
+      )
+      gloss.position.set(-0.18, 0.05, 0.22)
+      g.add(gloss)
+      const stick = new THREE.Mesh(
+        this.rbox(0.14, 0.6, 0.14, 0.06),
+        new THREE.MeshStandardMaterial({ color: 0xe6c489, roughness: 0.85 }),
+      )
+      stick.position.y = -0.78
       g.add(stick)
-      g.position.y = 1.1
       this.templates.ice = g
     }
 
-    // 雪碧 (green can)
+    // 雪碧 — aluminium green can with silver top, pull-tab and white swoosh
     {
       const g = new THREE.Group()
-      const can = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.34, 0.34, 1.0, 28),
-        new THREE.MeshStandardMaterial({ color: 0x2fb55f, roughness: 0.3, metalness: 0.6 }),
-      )
-      can.castShadow = true
-      g.add(can)
+      const green = new THREE.MeshStandardMaterial({ color: 0x1aa64a, roughness: 0.22, metalness: 0.75 })
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.33, 1.05, 30), green)
+      body.castShadow = true
+      g.add(body)
+      const silver = new THREE.MeshStandardMaterial({ color: 0xccd2d6, roughness: 0.28, metalness: 0.9 })
+      const topRim = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.335, 0.12, 30), silver)
+      topRim.position.y = 0.56
+      g.add(topRim)
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.285, 0.285, 0.03, 28), silver)
+      lid.position.y = 0.625
+      g.add(lid)
+      const botRim = new THREE.Mesh(new THREE.CylinderGeometry(0.335, 0.3, 0.1, 30), silver)
+      botRim.position.y = -0.56
+      g.add(botRim)
+      const tab = new THREE.Mesh(this.rbox(0.17, 0.02, 0.1, 0.01), silver)
+      tab.position.set(0, 0.645, 0.04)
+      g.add(tab)
+      // white swoosh band (open tilted cylinder)
       const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.345, 0.345, 0.28, 28),
-        new THREE.MeshStandardMaterial({ color: 0xeaf7ee, roughness: 0.3, metalness: 0.5 }),
+        new THREE.CylinderGeometry(0.337, 0.337, 0.34, 30, 1, true),
+        new THREE.MeshStandardMaterial({
+          color: 0xeef8f1,
+          roughness: 0.3,
+          metalness: 0.5,
+          side: THREE.DoubleSide,
+        }),
       )
+      band.rotation.z = 0.16
+      band.position.y = -0.02
       g.add(band)
-      g.position.y = 1.0
+      // a couple of yellow accents (lemon-lime hint)
+      const accent = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.339, 0.339, 0.05, 30, 1, true),
+        new THREE.MeshStandardMaterial({ color: 0xffe14a, roughness: 0.35, side: THREE.DoubleSide }),
+      )
+      accent.rotation.z = 0.16
+      accent.position.y = 0.16
+      g.add(accent)
       this.templates.sprite = g
     }
 
@@ -749,6 +801,10 @@ export class ThreeGame {
   debugSetDist(d: number) {
     this.totalDist = d
   }
+  debugForceAt(type: ObjType, lane: number, z: number) {
+    if (this.state !== 'playing') return
+    this.spawnObj(type, lane, z)
+  }
   debugTick(seconds: number) {
     let r = seconds
     while (r > 1e-6) {
@@ -773,7 +829,10 @@ export class ThreeGame {
   }
   private spawnObj(type: ObjType, lane: number, z: number) {
     const mesh = this.obtain(type)
-    mesh.position.set(LANES[lane], 0, z)
+    // collectibles float and spin; obstacles sit on the ground
+    const baseY = type === 'ice' || type === 'sprite' ? 1.05 : 0
+    mesh.position.set(LANES[lane], baseY, z)
+    mesh.rotation.set(0, 0, 0)
     this.objs.push({ type, lane, z, resolved: false, mesh })
   }
 
@@ -937,6 +996,10 @@ export class ThreeGame {
     for (const o of this.objs) {
       o.z += this.speed * dt
       o.mesh.position.z = o.z
+      if (o.type === 'ice' || o.type === 'sprite') {
+        o.mesh.rotation.y += dt * 1.9
+        o.mesh.position.y = 1.05 + Math.sin(this.time * 2.6 + o.z * 0.4) * 0.09
+      }
       if (!o.resolved && o.z >= 0) {
         o.resolved = true
         const obstacle = o.type === 'barrier' || o.type === 'treadmill' || o.type === 'overhead'
