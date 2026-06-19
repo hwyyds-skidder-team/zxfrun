@@ -110,6 +110,11 @@ export class ThreeGame {
   // particles
   private particles: { mesh: THREE.Mesh; vel: THREE.Vector3; life: number; max: number }[] = []
 
+  // weather
+  private rain!: THREE.LineSegments
+  private rainCount = 320
+  private skyPhase = 0
+
   constructor(canvas: HTMLCanvasElement, cb: GameCallbacks) {
     this.cb = cb
     this.best = Number(localStorage.getItem('zxfrun_best') || 0)
@@ -141,6 +146,7 @@ export class ThreeGame {
     this.buildProps()
     this.buildPlayer()
     this.buildParticles()
+    this.buildRain()
 
     try {
       const composer = new EffectComposer(this.renderer)
@@ -534,7 +540,61 @@ export class ThreeGame {
 
   private updateSky() {
     const phase = this.totalDist / PHASE_DIST + (this.state === 'menu' ? this.time * 0.03 : 0)
+    this.skyPhase = phase
     applySky(this.sky, phase)
+  }
+
+  private buildRain() {
+    const n = this.rainCount
+    const pos = new Float32Array(n * 6)
+    for (let i = 0; i < n; i++) {
+      const x = (Math.random() - 0.5) * 18
+      const y = Math.random() * 15
+      const z = -34 + Math.random() * 42
+      const len = 0.5 + Math.random() * 0.45
+      const o = i * 6
+      pos[o] = x
+      pos[o + 1] = y
+      pos[o + 2] = z
+      pos[o + 3] = x + 0.06
+      pos[o + 4] = y - len
+      pos[o + 5] = z + 0.18
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    const mat = new THREE.LineBasicMaterial({ color: 0xbfd0ff, transparent: true, opacity: 0, depthWrite: false })
+    this.rain = new THREE.LineSegments(geo, mat)
+    this.rain.frustumCulled = false
+    this.scene.add(this.rain)
+  }
+
+  private updateRain(dt: number) {
+    const mat = this.rain.material as THREE.LineBasicMaterial
+    const pn = ((this.skyPhase % 4) + 4) % 4
+    const target = Math.max(0, 1 - Math.abs(pn - 1) / 0.85) * 0.5
+    mat.opacity += (target - mat.opacity) * Math.min(1, dt * 2)
+    if (mat.opacity < 0.012) return
+    const attr = this.rain.geometry.getAttribute('position') as THREE.BufferAttribute
+    const arr = attr.array as Float32Array
+    const fall = (30 + this.speed * 0.6) * dt
+    for (let i = 0; i < this.rainCount; i++) {
+      const o = i * 6
+      arr[o + 1] -= fall
+      arr[o + 4] -= fall
+      if (arr[o + 4] < 0) {
+        const x = (Math.random() - 0.5) * 18
+        const y = 14 + Math.random() * 3
+        const z = -34 + Math.random() * 42
+        const len = 0.5 + Math.random() * 0.45
+        arr[o] = x
+        arr[o + 1] = y
+        arr[o + 2] = z
+        arr[o + 3] = x + 0.06
+        arr[o + 4] = y - len
+        arr[o + 5] = z + 0.18
+      }
+    }
+    attr.needsUpdate = true
   }
 
   private updateProps(dist: number) {
@@ -948,6 +1008,7 @@ export class ThreeGame {
     }
     this.updateProps(scroll * dt)
     this.updateSky()
+    this.updateRain(dt)
 
     if (this.state === 'menu') {
       this.runCycle += dt * 5
